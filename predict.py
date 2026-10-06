@@ -160,22 +160,46 @@ def analyze_message(message_text, persona="casual", thread_count=1):
     urgency_pred, urgency_conf = predict_with_confidence(urgency_model, message_text)
     tone_pred, tone_conf = predict_with_confidence(tone_model, message_text)
 
+    # ==========================================================
+    # Advanced Implicit & Contextual Urgency Engine
+    # ==========================================================
+    text_lower = message_text.lower()
+    
+    # 1. Explicit emergency / help keywords
+    explicit_urgent = ["urgent", "emergency", "asap", "immediately", "call me", "hurry", "help", "sos"]
+    
+    # 2. Time/Deadline pressure cues (vital for students and professionals)
+    time_cues = ["am", "pm", "today", "tomorrow", "tonight", "by ", "at ", "deadline", "due", "schedule"]
+    action_verbs = ["need", "reach", "come", "bring", "submit", "finish", "meet", "complete", "send"]
+    
+    has_question_or_demand = "?" in message_text or message_text.endswith("!")
+    is_explicit = any(w in text_lower for w in explicit_urgent)
+    is_time_sensitive = any(t in text_lower for t in time_cues) and any(v in text_lower for v in action_verbs)
+    is_student_or_work_demand = any(w in text_lower for w in ["assignment", "project", "class", "exam", "lecture", "meeting", "boss", "teacher", "prof"])
+
     if message_text.isupper() and len(message_text.strip()) > 3:
         urgency_pred = "High"
         urgency_conf = 98.2
+    elif is_explicit or is_student_or_work_demand:
+        urgency_pred = "High"
+        urgency_conf = 94.5
+    elif is_time_sensitive and has_question_or_demand:
+        urgency_pred = "Medium"
+        urgency_conf = 91.0
 
+    # Priority & Badge Color Mapping
     if spam_pred == "Spam":
         priority = "LOW (SPAM)"
         badge_color = "#94a3b8"
     elif urgency_pred == "High":
         priority = "P1 - URGENT"
-        badge_color = "#ef4444"
+        badge_color = "#ef4444"  # Red badge for P1 Alerts
     elif urgency_pred == "Medium":
         priority = "P2 - ACTIONABLE"
-        badge_color = "#f59e0b"
+        badge_color = "#f59e0b"  # Amber badge for upcoming commitments / time-bound tasks
     else:
         priority = "STANDARD"
-        badge_color = "#10b981"
+        badge_color = "#10b981"  # Green badge
 
     directives = generate_personalized_directives(
         message_text, persona, sentiment_pred, spam_pred, urgency_pred, tone_pred, thread_count
