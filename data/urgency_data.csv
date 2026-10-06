@@ -1,0 +1,5 @@
+message,label
+Call me immediately,urgent
+Emergency please respond,urgent
+No hurry,not_urgent
+Talk later,not_urgent

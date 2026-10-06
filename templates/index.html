@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Messaging Gateway</title>
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --sidebar-bg: #0f172a;
+            --sidebar-text: #94a3b8;
+            --sidebar-hover: #1e293b;
+            --card-bg: #ffffff;
+            --primary: #2563eb;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --border: #e2e8f0;
+            --text-dark: #0f172a;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-dark); display: flex; height: 100vh; overflow: hidden; }
+
+        .sidebar {
+            width: 260px;
+            background-color: var(--sidebar-bg);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 24px 16px;
+            color: #fff;
+            flex-shrink: 0;
+            transition: transform 0.3s ease;
+        }
+        .brand-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 20px 0 24px 0;
+            padding: 10px;
+            background: rgba(255,255,255,0.04);
+            border-radius: 8px;
+        }
+        .user-avatar {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: #f97316;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            color: #ffffff;
+            text-transform: uppercase;
+        }
+        .user-info { display: flex; flex-direction: column; overflow: hidden; }
+        .user-name { font-size: 14px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+        .user-role { font-size: 11px; color: var(--sidebar-text); }
+
+        .nav-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 11px 14px;
+            border-radius: 8px;
+            color: var(--sidebar-text);
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .nav-item:hover, .nav-item.active { background-color: var(--sidebar-hover); color: #fff; }
+        .nav-label { display: flex; align-items: center; gap: 12px; }
+        .nav-badge { background: rgba(255,255,255,0.15); font-size: 11px; padding: 2px 7px; border-radius: 10px; color: #e2e8f0; }
+
+        .main-wrapper { flex: 1; display: flex; flex-direction: column; overflow-y: auto; padding: 28px 36px; }
+        
+        /* Full-Screen Views */
+        .app-view { display: none; flex-direction: column; height: 100%; gap: 20px; }
+        .app-view.active-view { display: flex; }
+
+        .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 28px; }
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 20px 24px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .stat-card span { font-size: 0.85rem; color: #64748b; font-weight: 600; text-transform: uppercase; }
+        .stat-card h2 { font-size: 2.1rem; margin-top: 6px; }
+
+        .content-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 28px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            flex: 1;
+            overflow-y: auto;
+        }
+        .card-header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        
+        .feed-container { display: flex; flex-direction: column; gap: 14px; }
+        .feed-card {
+            border: 1px solid var(--border);
+            border-left: 5px solid var(--primary);
+            border-radius: 8px;
+            padding: 14px 18px;
+            background: #fafafa;
+        }
+        .feed-card.urgent { border-left-color: var(--danger); background: #fffcfc; }
+        .feed-card.meeting { border-left-color: var(--primary); }
+        .feed-card.task { border-left-color: var(--warning); }
+        .feed-top { display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: 700; font-size: 0.9rem; flex-wrap: wrap; gap: 4px; }
+        .badge { font-size: 0.75rem; padding: 3px 9px; border-radius: 12px; color: white; }
+
+        textarea {
+            width: 100%; height: 120px; padding: 12px; border: 1px solid var(--border);
+            border-radius: 8px; font-size: 14px; box-sizing: border-box; outline: none; margin-bottom: 12px;
+        }
+        .submit-btn {
+            background: var(--primary); color: #fff; border: none;
+            padding: 12px 24px; font-size: 14px; font-weight: bold; border-radius: 8px; cursor: pointer;
+        }
+        .submit-btn:hover { background: #1d4ed8; }
+
+        .directive-card {
+            background: #ffffff; color: #1e293b; padding: 12px 14px; border-radius: 6px;
+            border: 1px solid var(--border); margin-top: 8px; cursor: pointer; font-size: 13px; font-weight: 600;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .directive-card:hover { transform: translateY(-1px); box-shadow: 0 2px 5px rgba(0,0,0,0.06); }
+
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .tag-card {
+            background: #f8fafc; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);
+            display: flex; justify-content: space-between; font-size: 12px; align-items: center;
+        }
+        .tag-value { font-weight: bold; color: var(--primary); }
+
+        /* Modal Overlay for Assistant & Questionnaires */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(15, 23, 42, 0.75); display: none; justify-content: center; align-items: center;
+            z-index: 1000; backdrop-filter: blur(4px); padding: 16px;
+        }
+        .wizard-box {
+            background: #fff; width: 100%; max-width: 700px; max-height: 90vh; overflow-y: auto; border-radius: 16px;
+            padding: 28px; box-shadow: 0 20px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .close-btn { position: absolute; top: 20px; right: 24px; font-size: 22px; font-weight: bold; color: #94a3b8; cursor: pointer; border: none; background: none; }
+
+        .undo-card {
+            position: fixed; bottom: 28px; right: 28px;
+            background: #0f172a; color: white; padding: 16px 22px;
+            border-radius: 12px; box-shadow: 0 16px 36px rgba(0,0,0,0.35);
+            display: none; z-index: 999999; min-width: 300px; max-width: calc(100vw - 40px);
+            border: 1px solid rgba(255,255,255,0.15);
+        }
+        .undo-btn {
+            background: #ef4444; color: white; border: none; padding: 7px 16px;
+            border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 14px;
+        }
+        .undo-btn:hover { background: #dc2626; }
+
+        /* Mobile Hamburger & Responsive Breakpoints */
+        .mobile-hamburger {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: var(--text-dark);
+            cursor: pointer;
+            margin-right: 12px;
+        }
+
+        @media (max-width: 768px) {
+            body { flex-direction: column; overflow: auto; height: auto; }
+            .sidebar {
+                position: fixed;
+                left: -260px;
+                top: 0;
+                height: 100vh;
+                z-index: 1100;
+                transition: left 0.3s ease;
+            }
+            .sidebar.mobile-open {
+                left: 0;
+            }
+            .mobile-hamburger {
+                display: block;
+            }
+            .main-wrapper {
+                padding: 16px;
+                height: 100vh;
+                overflow-y: auto;
+            }
+            .stat-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+                margin-bottom: 16px;
+            }
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            .mobile-top-bar {
+                display: flex;
+                align-items: center;
+                margin-bottom: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="sidebar" id="appSidebar">
+    <div>
+        <div class="brand-header"><span>📡</span> Smart Messaging Gateway</div>
+        <div class="user-profile">
+            <div class="user-avatar" id="avatarInitial">{{ username[0] if username else 'A' }}</div>
+            <div class="user-info">
+                <span class="user-name">{{ username if username else 'Admin' }}</span>
+                <span class="user-role">Online Agent</span>
+            </div>
+        </div>
+
+        <ul class="nav-list">
+            <li class="nav-item active" onclick="switchView('overviewView', this); toggleMobileSidebar();">
+                <span class="nav-label"><span>📊</span> Overview</span>
+            </li>
+            <li class="nav-item" onclick="openAssistantModal(); toggleMobileSidebar();">
+                <span class="nav-label"><span>💬</span> Assistant</span>
+            </li>
+            <li class="nav-item" onclick="switchView('meetingsView', this); loadMeetings(); toggleMobileSidebar();">
+                <span class="nav-label"><span>📹</span> Meeting Links</span>
+                <span class="nav-badge" id="sidebarMeetingCount">0</span>
+            </li>
+            <li class="nav-item" onclick="switchView('tasksView', this); loadTasks(); toggleMobileSidebar();">
+                <span class="nav-label"><span>⏰</span> Upcoming Tasks</span>
+                <span class="nav-badge" id="sidebarTaskCount">0</span>
+            </li>
+            <li class="nav-item" onclick="startQuestionnaire(0); toggleMobileSidebar();">
+                <span class="nav-label"><span>⭐</span> Message Preferences</span>
+            </li>
+            <li class="nav-item" onclick="switchView('settingsView', this); toggleMobileSidebar();">
+                <span class="nav-label"><span>⚙️</span> Tone & Boundaries</span>
+            </li>
+        </ul>
+    </div>
+
+    <div>
+        <a href="/logout" style="color: #ef4444; text-decoration: none; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; padding: 10px;">
+            <span>🚪</span> Sign Out
+        </a>
+    </div>
+</div>
+
+<div class="main-wrapper">
+    <!-- Mobile top header bar with menu toggle -->
+    <div class="mobile-top-bar" id="mobileTopBar" style="display: none;">
+        <button class="mobile-hamburger" onclick="toggleMobileSidebar()">☰</button>
+        <span style="font-weight: 700; font-size: 1.05rem;">📡 Smart Messaging Gateway</span>
+    </div>
+
+    <!-- OVERVIEW VIEW (DEFAULT FULL-SCREEN) -->
+    <div id="overviewView" class="app-view active-view">
+        <div class="stat-grid">
+            <div class="stat-card">
+                <span>Critical P1 Alerts</span>
+                <h2 style="color: var(--danger);" id="urgentStat">0</h2>
+            </div>
+            <div class="stat-card">
+                <span>Upcoming Commitments</span>
+                <h2 style="color: var(--warning);" id="tasksStat">0</h2>
+            </div>
+            <div class="stat-card">
+                <span>Ambient Messages Read</span>
+                <h2 style="color: var(--primary);" id="totalStat">0</h2>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <div class="card-header-bar">
+                <div>
+                    <h3 style="font-size: 1.15rem;">Live Incoming Feed</h3>
+                    <p style="font-size: 12px; color: #64748b; margin-top: 2px;">Aggregating WhatsApp, Slack, SMS, Teams, and Gmail.</p>
+                </div>
+                <button onclick="openAssistantModal()" class="submit-btn" style="width: auto; padding: 6px 14px; font-size: 13px;">Open Assistant</button>
+            </div>
+            <div class="feed-container" id="overviewFeed">
+                <div style="color: #94a3b8; font-size: 13px; text-align: center; padding: 20px;">No unhandled alerts. Ambient assistant listening in background.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MEETING LINKS FULL-SCREEN VIEW -->
+    <div id="meetingsView" class="app-view">
+        <div class="content-card">
+            <h3 style="margin-bottom: 4px;">📹 Categorized Meetings</h3>
+            <p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">1-tap join and persistent lead alerts.</p>
+            <div id="meetingsList"><div style="color: #888; font-size: 13px;">Loading meetings...</div></div>
+        </div>
+    </div>
+
+    <!-- UPCOMING TASKS FULL-SCREEN VIEW -->
+    <div id="tasksView" class="app-view">
+        <div class="content-card">
+            <h3 style="margin-bottom: 4px;">📋 Tracked Deliverables</h3>
+            <p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">Calculated lead buffer alerts in persistent memory.</p>
+            <div id="tasksList"><div style="color: #888; font-size: 13px;">Loading tasks...</div></div>
+        </div>
+    </div>
+
+    <!-- TONE & BOUNDARIES FULL-SCREEN VIEW -->
+    <div id="settingsView" class="app-view">
+        <div class="content-card">
+            <h3 style="margin-bottom: 4px;">⚙️ Tone & Operational Boundaries</h3>
+            <p style="font-size: 13px; color: #64748b; margin-bottom: 24px;">Configure your custom working window and automated behaviors.</p>
+
+            <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; max-width: 600px;">
+                <label style="display: flex; justify-content: space-between; align-items: center; padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-weight: 600; font-size: 13px;">
+                    <span>🕒 Enable Active Working Hours Window</span>
+                    <input type="checkbox" id="activeHoursToggle" onchange="saveBoundarySettings()" style="width: 18px; height: 18px;">
+                </label>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-size: 13px; font-weight: 600; flex-wrap: wrap; gap: 10px;">
+                    <span>⏰ Working Hours Window:</span>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="time" id="workStartTime" value="09:00" onchange="saveBoundarySettings()" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px;">
+                        <span>to</span>
+                        <input type="time" id="workEndTime" value="17:00" onchange="saveBoundarySettings()" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px;">
+                    </div>
+                </div>
+                <label style="display: flex; justify-content: space-between; align-items: center; padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-weight: 600; font-size: 13px;">
+                    <span>🤖 Allow Autonomous Auto-Reply</span>
+                    <input type="checkbox" id="allowAutoReplyToggle" onchange="saveBoundarySettings()" style="width: 18px; height: 18px;">
+                </label>
+                <label style="display: flex; justify-content: space-between; align-items: center; padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-weight: 600; font-size: 13px;">
+                    <span>🚨 Emergency DND Bypass (Priority Only)</span>
+                    <input type="checkbox" id="dndBypassToggle" onchange="saveBoundarySettings()" style="width: 18px; height: 18px;">
+                </label>
+            </div>
+            <button onclick="switchView('overviewView', document.querySelectorAll('.nav-item')[0])" class="submit-btn" style="background: #0f172a; width: auto;">Save & Return to Overview</button>
+        </div>
+    </div>
+
+</div>
+
+<!-- OPEN ASSISTANT MODAL (MULTI-VIEW WINDOW) -->
+<div id="assistantModal" class="modal-overlay">
+    <div class="wizard-box" style="min-height: auto;">
+        <button class="close-btn" onclick="closeAssistantModal()">&times;</button>
+        <h3 style="margin-bottom: 4px;">💬 Assistant Control Console</h3>
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 14px;">Infers intent, adapts to persona, and monitors multi-turn thread escalation.</p>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+            <div>
+                <span style="font-size: 13px; font-weight: 600;">✍ Active Persona:</span>
+                <select id="userPersona" style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 13px;" onchange="saveBoundarySettings()">
+                    <option value="casual">Casual & Friendly</option>
+                    <option value="formal">Formal & Professional</option>
+                    <option value="short">Short & Direct</option>
+                    <option value="minimal">Minimalist</option>
+                </select>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 13px; font-weight: 600;">🔄 Thread Turns:</span>
+                <input type="number" id="threadCountInput" value="1" min="1" max="15" style="width: 48px; padding: 4px; text-align: center; border: 1px solid var(--border); border-radius: 4px;">
+            </div>
+        </div>
+
+        <textarea id="messageInput" placeholder="Type or paste incoming message to analyze..." style="height: 90px;"></textarea>
+        <button class="submit-btn" onclick="processMessage()">Execute Assistant</button>
+
+        <div id="resultsSection" style="display: none; margin-top: 14px; max-height: 250px; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+                <h4 style="font-size: 13px;">Personalized Choices (Tap to Edit & Dispatch with 7s Undo):</h4>
+                <span id="resultPriorityBadge" class="badge">STANDARD</span>
+            </div>
+            <div id="relayDirectives"></div>
+
+            <h4 style="font-size: 13px; color: #64748b; margin: 12px 0 6px 0;">Model Confidence Diagnostics (%):</h4>
+            <div id="analysisGrid" class="grid"></div>
+        </div>
+    </div>
+</div>
+
+<!-- EDITABLE DRAFT MODAL FOR ASSISTANT -->
+<div id="editDraftModal" class="modal-overlay">
+    <div class="wizard-box" style="min-height: auto;">
+        <button class="close-btn" onclick="closeEditDraftModal()">&times;</button>
+        <h3 style="margin-bottom: 4px;">✏️ Refine Draft Before Dispatch</h3>
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">Modify your automated response text below before triggering the 7-second Safety Undo queue.</p>
+        
+        <textarea id="refinedDraftText" style="height: 100px;"></textarea>
+        
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
+            <button onclick="closeEditDraftModal()" style="background: #64748b; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 13px;">Cancel</button>
+            <button onclick="stageEditedDraftWithUndo()" class="submit-btn" style="width: auto; padding: 10px 20px;">Stage with 7s Undo 🚀</button>
+        </div>
+    </div>
+</div>
+
+<!-- FULL-SCREEN INTERACTIVE QUESTIONNAIRE WIZARD -->
+<div id="questionnaireModal" class="modal-overlay">
+    <div class="wizard-box">
+        <button class="close-btn" onclick="closeQuestionnaire()">&times;</button>
+        <div>
+            <div id="wizardStepIndicator" style="font-size: 12px; font-weight: bold; color: var(--primary); text-transform: uppercase; margin-bottom: 8px;">Question 1 of 3</div>
+            <h2 id="wizardQuestionTitle" style="font-size: 1.35rem; margin-bottom: 8px; color: var(--text-dark);">What specific topics or messages would you like to prioritize?</h2>
+            <p id="wizardQuestionDesc" style="font-size: 13px; color: #64748b; margin-bottom: 24px;">Type any topics, keywords, or senders you care about.</p>
+            
+            <div id="wizardContentArea"></div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 20px; margin-top: 20px; flex-wrap: wrap; gap: 10px;">
+            <button onclick="skipPreferencesForNow()" style="background: transparent; color: #64748b; border: none; font-size: 14px; font-weight: 600; cursor: pointer;">Select Later 🕒</button>
+            <div style="display: flex; gap: 10px;">
+                <button id="wizardPrevBtn" onclick="prevQuestion()" style="background: #e2e8f0; color: #334155; border: none; padding: 10px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; display: none;">Back</button>
+                <button id="wizardNextBtn" onclick="nextQuestion()" class="submit-btn">Next Step ➔</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 7-Second Safety Undo Pop-up Banner -->
+<div id="undoCard" class="undo-card">
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+        <div>
+            <div style="font-weight: bold; font-size: 13px;">⏳ Sending in <span id="cooloffTimer">7</span>s...</div>
+            <div id="undoSnippet" style="font-size: 12px; color: #94a3b8; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></div>
+        </div>
+        <button id="undoBtn" class="undo-btn" onclick="triggerUndo()">UNDO</button>
+    </div>
+</div>
+
+<script>
+    let activeReplyId = null;
+    let countdownInterval = null;
+    let currentEditingText = "";
+    let currentWizardStep = 0;
+
+    const wizardSteps = [
+        {
+            title: "What specific topics, keywords, or categories would you like to prioritize?",
+            desc: "Tell us what matters to you (e.g., sports scores, bank OTPs, family chat, bills, project deadlines).",
+            render: () => `<textarea id="userCustomTopics" placeholder="Type your topics and keywords here (comma separated)..." style="height: 120px;"></textarea>`
+        },
+        {
+            title: "How would you like high-priority or important messages handled?",
+            desc: "Select the stage of action you prefer for your top priorities:",
+            render: () => `
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <label style="padding: 12px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; display: flex; gap: 10px; cursor: pointer;">
+                        <input type="radio" name="handlingStage" value="immediate" checked style="margin-top: 3px;">
+                        <div><strong>Immediate Notification & Overlay Alert</strong><div style="font-size: 12px; color: #64748b;">Interrupts instantly with priority badges and popup alerts.</div></div>
+                    </label>
+                    <label style="padding: 12px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; display: flex; gap: 10px; cursor: pointer;">
+                        <input type="radio" name="handlingStage" value="staged" style="margin-top: 3px;">
+                        <div><strong>Staged Feed & Review Queue</strong><div style="font-size: 12px; color: #64748b;">Keeps them in your web dashboard feed ready for 7-second undo drafts.</div></div>
+                    </label>
+                </div>
+            `
+        },
+        {
+            title: "What should the app do with unwanted spam or noise?",
+            desc: "Choose how background automation handles low-value messages:",
+            render: () => `
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <label style="padding: 12px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; display: flex; gap: 10px; cursor: pointer;">
+                        <input type="radio" name="spamHandling" value="delete" checked style="margin-top: 3px;">
+                        <div><strong>Automatically Delete/Filter in Background</strong><div style="font-size: 12px; color: #64748b;">Silently discards spam and junk promotional messages so they never bother you.</div></div>
+                    </label>
+                    <label style="padding: 12px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; display: flex; gap: 10px; cursor: pointer;">
+                        <input type="radio" name="spamHandling" value="archive" style="margin-top: 3px;">
+                        <div><strong>Keep in Off-Hours Deferred Queue</strong><div style="font-size: 12px; color: #64748b;">Holds them safely for review later during personal downtime.</div></div>
+                    </label>
+                </div>
+            `
+        }
+    ];
+
+    function toggleMobileSidebar() {
+        if (window.innerWidth <= 768) {
+            document.getElementById('appSidebar').classList.toggle('mobile-open');
+        }
+    }
+
+    function switchView(viewId, element) {
+        document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active-view'));
+        document.getElementById(viewId).classList.add('active-view');
+        
+        document.querySelectorAll('.sidebar .nav-item').forEach(i => i.classList.remove('active'));
+        if (element) element.classList.add('active');
+    }
+
+    function openAssistantModal() {
+        document.getElementById('assistantModal').style.display = 'flex';
+    }
+
+    function closeAssistantModal() {
+        document.getElementById('assistantModal').style.display = 'none';
+    }
+
+    function startQuestionnaire(step = 0) {
+        currentWizardStep = step;
+        renderWizardStep();
+        document.getElementById('questionnaireModal').style.display = 'flex';
+    }
+
+    function closeQuestionnaire() {
+        document.getElementById('questionnaireModal').style.display = 'none';
+    }
+
+    function renderWizardStep() {
+        const stepData = wizardSteps[currentWizardStep];
+        document.getElementById('wizardStepIndicator').innerText = `Question ${currentWizardStep + 1} of ${wizardSteps.length}`;
+        document.getElementById('wizardQuestionTitle').innerText = stepData.title;
+        document.getElementById('wizardQuestionDesc').innerText = stepData.desc;
+        document.getElementById('wizardContentArea').innerHTML = stepData.render();
+
+        document.getElementById('wizardPrevBtn').style.display = currentWizardStep > 0 ? 'block' : 'none';
+        document.getElementById('wizardNextBtn').innerText = currentWizardStep === wizardSteps.length - 1 ? 'Save & Finish 🚀' : 'Next Step ➔';
+    }
+
+    function nextQuestion() {
+        if (currentWizardStep < wizardSteps.length - 1) {
+            currentWizardStep++;
+            renderWizardStep();
+        } else {
+            saveAndClosePreferences();
+        }
+    }
+
+    function prevQuestion() {
+        if (currentWizardStep > 0) {
+            currentWizardStep--;
+            renderWizardStep();
+        }
+    }
+
+    function openEditDraftModal(text) {
+        currentEditingText = text;
+        document.getElementById('refinedDraftText').value = text;
+        document.getElementById('editDraftModal').style.display = 'flex';
+    }
+
+    function closeEditDraftModal() {
+        document.getElementById('editDraftModal').style.display = 'none';
+    }
+
+    function stageEditedDraftWithUndo() {
+        const finalEditedText = document.getElementById('refinedDraftText').value;
+        closeEditDraftModal();
+        closeAssistantModal();
+        stageDispatchWithUndo(finalEditedText);
+    }
+
+    async function loadSettings() {
+        try {
+            if (window.innerWidth <= 768) {
+                document.getElementById('mobileTopBar').style.display = 'flex';
+            }
+            const res = await fetch('/get_settings');
+            if (res.status === 401) return;
+            const data = await res.json();
+            
+            document.getElementById('activeHoursToggle').checked = data.active_hours_enabled === 1;
+            document.getElementById('workStartTime').value = data.work_start_time || '09:00';
+            document.getElementById('workEndTime').value = data.work_end_time || '17:00';
+            document.getElementById('allowAutoReplyToggle').checked = data.allow_auto_reply === 1;
+            document.getElementById('dndBypassToggle').checked = data.dnd_bypass_enabled === 1;
+            if (data.default_persona) {
+                document.getElementById('userPersona').value = data.default_persona;
+            }
+
+            if (!data.preferences_configured && !sessionStorage.getItem('skipped_preferences')) {
+                startQuestionnaire(0);
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    function skipPreferencesForNow() {
+        sessionStorage.setItem('skipped_preferences', 'true');
+        closeQuestionnaire();
+        showOnboardingReminder();
+    }
+
+    function showOnboardingReminder() {
+        const banner = document.createElement('div');
+        banner.style.position = 'fixed';
+        banner.style.top = '20px';
+        banner.style.right = '20px';
+        banner.style.background = '#0f172a';
+        banner.style.color = '#fff';
+        banner.style.padding = '12px 18px';
+        banner.style.borderRadius = '8px';
+        banner.style.zIndex = '999999';
+        banner.style.fontSize = '13px';
+        banner.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        banner.innerHTML = '💡 <strong>Tip:</strong> For better app use, you can add preferences anytime in <span style="text-decoration: underline; cursor:pointer;" onclick="startQuestionnaire(0)">Message Preferences</span>.';
+        document.body.appendChild(banner);
+        setTimeout(() => banner.remove(), 7000);
+    }
+
+    async function saveAndClosePreferences() {
+        await saveBoundarySettings();
+        sessionStorage.setItem('skipped_preferences', 'false');
+        closeQuestionnaire();
+    }
+
+    async function saveBoundarySettings() {
+        const payload = {
+            active_hours_enabled: document.getElementById('activeHoursToggle').checked,
+            work_start_time: document.getElementById('workStartTime').value,
+            work_end_time: document.getElementById('workEndTime').value,
+            allow_auto_reply: document.getElementById('allowAutoReplyToggle').checked,
+            dnd_bypass_enabled: document.getElementById('dndBypassToggle').checked,
+            persona: document.getElementById('userPersona').value
+        };
+        await fetch('/update_settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+    }
+
+    async function loadTasks() {
+        try {
+            const res = await fetch('/get_tasks');
+            if (res.status === 401) return;
+            const data = await res.json();
+            const listDiv = document.getElementById('tasksList');
+            listDiv.innerHTML = '';
+            const tasks = data.tasks || [];
+            
+            const pendingTasks = tasks.filter(t => !t.status || t.status === 'Pending');
+            document.getElementById('sidebarTaskCount').innerText = pendingTasks.length;
+            document.getElementById('tasksStat').innerText = pendingTasks.length;
+
+            if (pendingTasks.length === 0) {
+                listDiv.innerHTML = '<div style="color: #888; font-size: 13px; text-align: center; padding: 20px;">No pending commitments.</div>';
+                return;
+            }
+
+            pendingTasks.forEach(t => {
+                const div = document.createElement('div');
+                div.style.padding = '14px'; 
+                div.style.borderBottom = '1px solid #e2e8f0';
+                div.style.display = 'flex';
+                div.style.justifyContent = 'space-between';
+                div.style.alignItems = 'center';
+                div.style.flexWrap = 'wrap';
+                div.style.gap = '10px';
+                
+                div.innerHTML = `
+                    <div>
+                        <strong>${t.task_title}</strong>
+                        <div style="font-size: 12px; color: #64748b; margin-top: 3px;">Due: ${t.deadline_text || 'Asap'} | Alert: ${t.buffer_lead || '30m prior'}</div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="updateTaskStatus(${t.id}, 'Completed')" style="background:#10b981; color:white; border:none; padding:8px 12px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">Mark Done ✅</button>
+                        <button onclick="updateTaskStatus(${t.id}, 'Dismissed')" style="background:#ef4444; color:white; border:none; padding:8px 12px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">Dismiss ✕</button>
+                    </div>
+                `;
+                listDiv.appendChild(div);
+            });
+        } catch (e) { console.error('Error loading tasks:', e); }
+    }
+
+    async function updateTaskStatus(taskId, status) {
+        try {
+            const res = await fetch('/update_task_status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ task_id: taskId, status: status })
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                loadTasks();
+            }
+        } catch (e) {
+            console.error('Error updating task status:', e);
+        }
+    }
+
+    async function loadMeetings() {
+        try {
+            const res = await fetch('/get_meetings');
+            if (res.status === 401) return;
+            const data = await res.json();
+            const listDiv = document.getElementById('meetingsList');
+            listDiv.innerHTML = '';
+            const meetings = data.meetings || [];
+            document.getElementById('sidebarMeetingCount').innerText = meetings.length;
+
+            if (meetings.length === 0) {
+                listDiv.innerHTML = '<div style="color: #888; font-size: 13px; text-align: center; padding: 20px;">No scheduled meetings recorded.</div>';
+                return;
+            }
+            meetings.forEach(m => {
+                const div = document.createElement('div');
+                div.style.padding = '14px'; div.style.borderBottom = '1px solid #e2e8f0';
+                div.style.display = 'flex'; div.style.justifyContent = 'space-between'; div.style.alignItems = 'center';
+                div.style.flexWrap = 'wrap'; div.style.gap = '10px';
+                div.innerHTML = `<div><strong>${m.platform} Call</strong><div style="font-size: 12px; color: #64748b; margin-top: 3px;">Time: ${m.scheduled_time}</div></div><a href="${m.meeting_url}" target="_blank" class="directive-card" style="margin:0; text-decoration:none; background:#2563eb; color:white; padding:6px 14px; border-radius:6px;">Launch 🚀</a>`;
+                listDiv.appendChild(div);
+            });
+        } catch (e) { console.error(e); }
+    }
+
+    async function processMessage() {
+        const input = document.getElementById('messageInput').value;
+        const persona = document.getElementById('userPersona').value;
+        const threadCount = parseInt(document.getElementById('threadCountInput').value || 1);
+
+        if (!input.trim()) {
+            alert('Please enter a message to analyze.');
+            return;
+        }
+
+        try {
+            const response = await fetch('/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    message: input, 
+                    persona: persona, 
+                    thread_count: threadCount 
+                })
+            });
+            const data = await response.json();
+
+            loadMeetings();
+            loadTasks();
+
+            const dirDiv = document.getElementById('relayDirectives');
+            dirDiv.innerHTML = '';
+            (data.relay_directives || []).forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'directive-card';
+                card.style.borderLeft = `4px solid ${data.badge_color}`;
+                card.innerHTML = `<span>${item}</span><span style="font-size:11px; color:#2563eb;">Edit & Dispatch ➔</span>`;
+                
+                if (data.meeting_info && item.includes(data.meeting_info.platform)) {
+                    card.title = "Tap to open meeting";
+                    card.onclick = () => window.open(data.meeting_info.join_url, '_blank');
+                } else {
+                    card.title = "Tap to edit draft before staging";
+                    card.onclick = () => openEditDraftModal(item);
+                }
+                dirDiv.appendChild(card);
+            });
+
+            const badge = document.getElementById('resultPriorityBadge');
+            badge.innerText = data.priority;
+            badge.style.backgroundColor = data.badge_color;
+
+            const grid = document.getElementById('analysisGrid');
+            grid.innerHTML = '';
+            for (const [key, val] of Object.entries(data.analysis || {})) {
+                const card = document.createElement('div');
+                card.className = 'tag-card';
+                card.innerHTML = `<span>${key}</span><span class="tag-value">${val.prediction} (${val.confidence}%)</span>`;
+                grid.appendChild(card);
+            }
+
+            document.getElementById('resultsSection').style.display = 'block';
+
+            if (data.priority.includes('URGENT') || data.meeting_info || data.deadline_info) {
+                const overviewFeed = document.getElementById('overviewFeed');
+                const newCard = document.createElement('div');
+                const isUrgent = data.priority.includes('URGENT');
+                const isMeeting = !!data.meeting_info;
+
+                newCard.className = `feed-card ${isUrgent ? 'urgent' : isMeeting ? 'meeting' : 'task'}`;
+                newCard.innerHTML = `
+                    <div class="feed-top">
+                        <span>Assistant Ingest</span>
+                        <span class="badge" style="background:${data.badge_color};">${data.priority}</span>
+                    </div>
+                    <p style="font-size: 0.85rem; color: #334155;">${input}</p>
+                    ${isMeeting ? `<div style="margin-top: 8px;"><a href="${data.meeting_info.join_url}" target="_blank" class="directive-card" style="margin:0; text-decoration:none; background:#2563eb; color:white; display:inline-block; padding:4px 10px;">Join ${data.meeting_info.platform} 🚀</a></div>` : ''}
+                `;
+                overviewFeed.prepend(newCard);
+
+                if (isUrgent) {
+                    const urgStat = document.getElementById('urgentStat');
+                    urgStat.innerText = parseInt(urgStat.innerText || 0) + 1;
+                }
+            }
+        } catch (e) {
+            console.error('Error executing assistant directives:', e);
+        }
+    }
+
+    async function pollLiveFeed() {
+        try {
+            const res = await fetch('/get_feed');
+            if (res.status === 401) return;
+            const data = await res.json();
+            const overviewFeed = document.getElementById('overviewFeed');
+            const feed = data.feed || [];
+
+            document.getElementById('totalStat').innerText = feed.length;
+            if (feed.length === 0) return;
+
+            overviewFeed.innerHTML = '';
+            feed.forEach(item => {
+                const isUrgent = item.priority.includes('URGENT');
+                const isMeeting = !!item.meeting_url;
+
+                const card = document.createElement('div');
+                card.className = `feed-card ${isUrgent ? 'urgent' : isMeeting ? 'meeting' : 'task'}`;
+                card.innerHTML = `
+                    <div class="feed-top">
+                        <span>${item.sender} (${item.app_source}) • <small style="color: #64748b;">${item.timestamp}</small></span>
+                        <span class="badge" style="background:${item.badge_color};">${item.priority}</span>
+                    </div>
+                    <p style="font-size: 0.85rem; color: #334155;">${item.message}</p>
+                    ${isMeeting ? `<div style="margin-top: 8px;"><a href="${item.meeting_url}" target="_blank" class="directive-card" style="margin:0; text-decoration:none; background:#2563eb; color:white; display:inline-block; padding:4px 10px;">Join ${item.meeting_platform} 🚀</a></div>` : ''}
+                `;
+                overviewFeed.appendChild(card);
+            });
+        } catch (e) { console.error(e); }
+    }
+
+    async function stageDispatchWithUndo(text) {
+        clearInterval(countdownInterval);
+        const res = await fetch('/stage_reply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reply_text: text })
+        });
+        const data = await res.json();
+        activeReplyId = data.reply_id;
+        
+        let secondsLeft = data.cooloff_seconds || 7;
+        const undoCard = document.getElementById('undoCard');
+        const timerSpan = document.getElementById('cooloffTimer');
+        const snippetSpan = document.getElementById('undoSnippet');
+        
+        timerSpan.innerText = secondsLeft;
+        snippetSpan.innerText = text;
+        undoCard.style.display = 'block';
+
+        countdownInterval = setInterval(async () => {
+            secondsLeft -= 1;
+            timerSpan.innerText = secondsLeft;
+            if (secondsLeft <= 0) {
+                clearInterval(countdownInterval);
+                undoCard.style.display = 'none';
+                await fetch('/dispatch_reply', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reply_id: activeReplyId })
+                });
+            }
+        }, 1000);
+    }
+
+    async function triggerUndo() {
+        clearInterval(countdownInterval);
+        document.getElementById('undoCard').style.display = 'none';
+        if (activeReplyId) {
+            await fetch('/cancel_reply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reply_id: activeReplyId })
+            });
+            alert('🛡️ Dispatch successfully recalled! No message was sent.');
+            activeReplyId = null;
+        }
+    }
+
+    window.onload = () => {
+        loadSettings();
+        loadMeetings();
+        loadTasks();
+        pollLiveFeed();
+        setInterval(pollLiveFeed, 4000);
+    };
+</script>
+
+</body>
+</html>
