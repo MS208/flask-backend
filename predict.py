@@ -1,14 +1,17 @@
 import joblib
 import random
 import re
+import os
 from preprocess import clean_text
 from temporal_engine import extract_deadline_and_alert
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Load trained classification models
-sentiment_model = joblib.load('models/sentiment_model.pkl')
-spam_model = joblib.load('models/spam_model.pkl')
-urgency_model = joblib.load('models/urgency_model.pkl')
-tone_model = joblib.load('models/tone_model.pkl')
+sentiment_model = joblib.load(os.path.join(BASE_DIR, 'models', 'sentiment_model.pkl'))
+spam_model = joblib.load(os.path.join(BASE_DIR, 'models', 'spam_model.pkl'))
+urgency_model = joblib.load(os.path.join(BASE_DIR, 'models', 'urgency_model.pkl'))
+tone_model = joblib.load(os.path.join(BASE_DIR, 'models', 'tone_model.pkl'))
 
 def polish_sentence(text):
     """Cleans up rough automated drafts, capitalizes letters, and sets correct punctuation."""

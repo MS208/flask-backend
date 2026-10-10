@@ -310,8 +310,18 @@
     <!-- MEETING LINKS FULL-SCREEN VIEW -->
     <div id="meetingsView" class="app-view">
         <div class="content-card">
-            <h3 style="margin-bottom: 4px;">📹 Categorized Meetings</h3>
-            <p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">1-tap join and persistent lead alerts.</p>
+            <div class="card-header-bar">
+                <div>
+                    <h3 style="margin-bottom: 4px;">📹 Categorized Meetings</h3>
+                    <p style="font-size: 13px; color: #64748b;">1-tap join, link management, and persistent lead alerts.</p>
+                </div>
+                <button onclick="openMeetingModal()" class="submit-btn" style="width: auto; padding: 8px 16px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                    <span>➕</span> Add Meeting Link
+                </button>
+            </div>
+            
+            <div id="meetingAlertBox" style="display: none; padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; font-weight: 500;"></div>
+
             <div id="meetingsList"><div style="color: #888; font-size: 13px;">Loading meetings...</div></div>
         </div>
     </div>
@@ -319,8 +329,25 @@
     <!-- UPCOMING TASKS FULL-SCREEN VIEW -->
     <div id="tasksView" class="app-view">
         <div class="content-card">
-            <h3 style="margin-bottom: 4px;">📋 Tracked Deliverables</h3>
-            <p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">Calculated lead buffer alerts in persistent memory.</p>
+            <div class="card-header-bar">
+                <div>
+                    <h3 style="margin-bottom: 4px;">📋 Tracked Deliverables</h3>
+                    <p style="font-size: 13px; color: #64748b;">Manage commitments, deadlines, and buffer alerts in persistent memory.</p>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <div style="display: flex; background: #f1f5f9; border: 1px solid var(--border); border-radius: 8px; padding: 2px;">
+                        <button id="taskFilterPending" onclick="setTaskFilter('pending')" style="background: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--primary);">Pending</button>
+                        <button id="taskFilterAll" onclick="setTaskFilter('all')" style="background: transparent; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: #64748b;">All</button>
+                        <button id="taskFilterCompleted" onclick="setTaskFilter('completed')" style="background: transparent; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: #64748b;">Completed</button>
+                    </div>
+                    <button onclick="openTaskModal()" class="submit-btn" style="width: auto; padding: 8px 16px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                        <span>➕</span> Add Task
+                    </button>
+                </div>
+            </div>
+
+            <div id="taskAlertBox" style="display: none; padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; font-weight: 500;"></div>
+
             <div id="tasksList"><div style="color: #888; font-size: 13px;">Loading tasks...</div></div>
         </div>
     </div>
@@ -413,6 +440,136 @@
         </div>
     </div>
 </div>
+
+<!-- ADD / EDIT MEETING MODAL -->
+<div id="meetingModal" class="modal-overlay">
+    <div class="wizard-box" style="min-height: auto; max-width: 520px;">
+        <button class="close-btn" onclick="closeMeetingModal()">&times;</button>
+        <h3 id="meetingModalTitle" style="margin-bottom: 4px;">➕ Add Meeting Link</h3>
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">Save an upcoming conference or meeting link to persistent storage.</p>
+
+        <div id="meetingModalError" style="display: none; background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 14px; font-weight: 500;"></div>
+
+        <input type="hidden" id="meetingIdInput" value="">
+
+        <div style="margin-bottom: 14px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 5px;">Meeting Title / Topic</label>
+            <input type="text" id="meetingTitleInput" placeholder="e.g. Sprint Sync, Client Demo" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; box-sizing: border-box;">
+        </div>
+
+        <div style="margin-bottom: 14px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 5px;">Meeting Platform</label>
+            <select id="meetingPlatformInput" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; background: white; box-sizing: border-box;">
+                <option value="Auto-Detect">Auto-Detect from Link</option>
+                <option value="Google Meet">Google Meet</option>
+                <option value="Zoom">Zoom</option>
+                <option value="MS Teams">Microsoft Teams</option>
+                <option value="Webex">Cisco Webex</option>
+                <option value="Jitsi Meet">Jitsi Meet</option>
+                <option value="Web Link">Other / Web Link</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom: 14px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 5px;">Meeting Link URL <span style="color: #ef4444;">*</span></label>
+            <input type="text" id="meetingUrlInput" placeholder="https://meet.google.com/xyz or https://zoom.us/j/123" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; box-sizing: border-box;">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+            <div>
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 5px;">Meeting Date</label>
+                <input type="date" id="meetingDateInput" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; box-sizing: border-box;">
+            </div>
+            <div>
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 5px;">Start Time</label>
+                <input type="time" id="meetingTimeInput" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; box-sizing: border-box;">
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+            <div>
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 5px;">Phone Reminder Alert</label>
+                <select id="meetingReminderInput" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; background: white; box-sizing: border-box;">
+                    <option value="30" selected>30 minutes before (Default)</option>
+                    <option value="15">15 minutes before</option>
+                    <option value="0">No reminder</option>
+                </select>
+            </div>
+            <div>
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 5px;">Status</label>
+                <select id="meetingStatusInput" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; background: white; box-sizing: border-box;">
+                    <option value="Scheduled" selected>Scheduled</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Cancelled">Cancelled</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button onclick="closeMeetingModal()" style="background: #64748b; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px;">Cancel</button>
+            <button id="saveMeetingBtn" onclick="saveMeeting()" class="submit-btn" style="width: auto; padding: 10px 22px;">Save Link 💾</button>
+        </div>
+    </div>
+</div>
+
+<!-- ADD / EDIT TASK MODAL -->
+<div id="taskModal" class="modal-overlay">
+    <div class="wizard-box" style="min-height: auto; max-width: 520px;">
+        <button class="close-btn" onclick="closeTaskModal()">&times;</button>
+        <h3 id="taskModalTitle" style="margin-bottom: 4px;">➕ Add Upcoming Task</h3>
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">Track your deliverables with deadline and advance alert reminders.</p>
+
+        <div id="taskModalError" style="display: none; background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 14px; font-weight: 500;"></div>
+
+        <input type="hidden" id="taskIdInput" value="">
+
+        <div style="margin-bottom: 14px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 5px;">Task Title / Action Item <span style="color: #ef4444;">*</span></label>
+            <input type="text" id="taskTitleInput" placeholder="e.g. Submit quarterly financial report" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; box-sizing: border-box;">
+        </div>
+
+        <div style="margin-bottom: 14px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 5px;">Task Description / Notes</label>
+            <textarea id="taskDescInput" placeholder="Optional details, instructions, or links" style="width: 100%; height: 60px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; box-sizing: border-box; resize: vertical;"></textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+            <div>
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 5px;">Due Date</label>
+                <input type="date" id="taskDueDateInput" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; box-sizing: border-box;">
+            </div>
+            <div>
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 5px;">Due Time</label>
+                <input type="time" id="taskDueTimeInput" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; box-sizing: border-box;">
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+            <div>
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 5px;">Phone Reminder Alert</label>
+                <select id="taskReminderInput" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; background: white; box-sizing: border-box;">
+                    <option value="30" selected>30 minutes before (Default)</option>
+                    <option value="15">15 minutes before</option>
+                    <option value="0">No reminder</option>
+                </select>
+            </div>
+            <div>
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 5px;">Status</label>
+                <select id="taskStatusInput" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; background: white; box-sizing: border-box;">
+                    <option value="Pending" selected>Pending</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Dismissed">Dismissed</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button onclick="closeTaskModal()" style="background: #64748b; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px;">Cancel</button>
+            <button id="saveTaskBtn" onclick="saveTask()" class="submit-btn" style="width: auto; padding: 10px 22px;">Save Task 💾</button>
+        </div>
+    </div>
+</div>
+
 
 <!-- FULL-SCREEN INTERACTIVE QUESTIONNAIRE WIZARD -->
 <div id="questionnaireModal" class="modal-overlay">
@@ -638,47 +795,245 @@
         });
     }
 
+    // --- UTILITY & ALERT HELPERS ---
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function showMeetingAlert(msg, type = 'success') {
+        const box = document.getElementById('meetingAlertBox');
+        if (!box) return;
+        box.style.display = 'block';
+        box.style.background = type === 'error' ? '#fef2f2' : '#ecfdf5';
+        box.style.color = type === 'error' ? '#ef4444' : '#10b981';
+        box.style.border = type === 'error' ? '1px solid #fecaca' : '1px solid #a7f3d0';
+        box.innerText = msg;
+        setTimeout(() => { if (box) box.style.display = 'none'; }, 4500);
+    }
+
+    function showTaskAlert(msg, type = 'success') {
+        const box = document.getElementById('taskAlertBox');
+        if (!box) return;
+        box.style.display = 'block';
+        box.style.background = type === 'error' ? '#fef2f2' : '#ecfdf5';
+        box.style.color = type === 'error' ? '#ef4444' : '#10b981';
+        box.style.border = type === 'error' ? '1px solid #fecaca' : '1px solid #a7f3d0';
+        box.innerText = msg;
+        setTimeout(() => { if (box) box.style.display = 'none'; }, 4500);
+    }
+
+    // --- UPCOMING TASKS MANAGEMENT ---
+    let allTasks = [];
+    let currentTaskFilter = 'pending';
+
+    function setTaskFilter(filter) {
+        currentTaskFilter = filter;
+        ['pending', 'all', 'completed'].forEach(f => {
+            const btn = document.getElementById('taskFilter' + f.charAt(0).toUpperCase() + f.slice(1));
+            if (btn) {
+                if (f === filter) {
+                    btn.style.background = 'white';
+                    btn.style.color = 'var(--primary)';
+                } else {
+                    btn.style.background = 'transparent';
+                    btn.style.color = '#64748b';
+                }
+            }
+        });
+        renderTasks();
+    }
+
     async function loadTasks() {
         try {
             const res = await fetch('/get_tasks');
             if (res.status === 401) return;
             const data = await res.json();
-            const listDiv = document.getElementById('tasksList');
-            listDiv.innerHTML = '';
-            const tasks = data.tasks || [];
-            
-            const pendingTasks = tasks.filter(t => !t.status || t.status === 'Pending');
-            document.getElementById('sidebarTaskCount').innerText = pendingTasks.length;
-            document.getElementById('tasksStat').innerText = pendingTasks.length;
+            allTasks = data.tasks || [];
 
-            if (pendingTasks.length === 0) {
-                listDiv.innerHTML = '<div style="color: #888; font-size: 13px; text-align: center; padding: 20px;">No pending commitments.</div>';
+            const pendingTasks = allTasks.filter(t => !t.status || t.status === 'Pending');
+            const countEl = document.getElementById('sidebarTaskCount');
+            if (countEl) countEl.innerText = pendingTasks.length;
+            const statEl = document.getElementById('tasksStat');
+            if (statEl) statEl.innerText = pendingTasks.length;
+
+            renderTasks();
+        } catch (e) {
+            console.error('Error loading tasks:', e);
+        }
+    }
+
+    function renderTasks() {
+        const listDiv = document.getElementById('tasksList');
+        if (!listDiv) return;
+        listDiv.innerHTML = '';
+
+        let filtered = allTasks;
+        if (currentTaskFilter === 'pending') {
+            filtered = allTasks.filter(t => !t.status || t.status === 'Pending');
+        } else if (currentTaskFilter === 'completed') {
+            filtered = allTasks.filter(t => t.status === 'Completed');
+        }
+
+        if (filtered.length === 0) {
+            let msg = 'No pending commitments.';
+            if (currentTaskFilter === 'completed') msg = 'No completed tasks recorded yet.';
+            if (currentTaskFilter === 'all') msg = 'No tasks recorded yet. Click "+ Add Task" to create one.';
+            listDiv.innerHTML = `<div style="color: #888; font-size: 13px; text-align: center; padding: 28px;">${msg}</div>`;
+            return;
+        }
+
+        filtered.forEach(t => {
+            const div = document.createElement('div');
+            div.style.padding = '14px 16px';
+            div.style.borderBottom = '1px solid #e2e8f0';
+            div.style.display = 'flex';
+            div.style.justifyContent = 'space-between';
+            div.style.alignItems = 'center';
+            div.style.flexWrap = 'wrap';
+            div.style.gap = '12px';
+
+            const isDone = t.status === 'Completed';
+            const isDismissed = t.status === 'Dismissed';
+            const badgeColor = isDone ? '#10b981' : isDismissed ? '#64748b' : '#f59e0b';
+            const statusLabel = t.status || 'Pending';
+            const remLabel = (t.reminder_offset !== undefined && t.reminder_offset !== null && parseInt(t.reminder_offset) > 0) ? `🔔 ${t.reminder_offset}m prior` : '🔕 No reminder';
+            const dueDisplay = (t.due_date || t.due_time) ? `${t.due_date || ''} ${t.due_time || ''}`.trim() : (t.deadline_text || 'Upcoming');
+
+            div.innerHTML = `
+                <div style="flex: 1; min-width: 220px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                        <span class="badge" style="background: ${badgeColor}; font-size: 11px;">${statusLabel}</span>
+                        <strong style="font-size: 14px; ${isDone ? 'text-decoration: line-through; color: #64748b;' : 'color: #0f172a;'}">${escapeHtml(t.task_title)}</strong>
+                    </div>
+                    ${t.description ? `<div style="font-size: 12px; color: #475569; margin-bottom: 4px;">${escapeHtml(t.description)}</div>` : ''}
+                    <div style="font-size: 12px; color: #64748b; display: flex; gap: 14px; flex-wrap: wrap;">
+                        <span>🕒 <strong>Due:</strong> ${escapeHtml(dueDisplay)}</span>
+                        <span>${escapeHtml(remLabel)}</span>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    ${isDone ? `
+                        <button onclick="updateTaskStatus(${t.id}, 'Pending')" style="background:#f59e0b; color:white; border:none; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Reopen task">Reopen 🔄</button>
+                    ` : `
+                        <button onclick="updateTaskStatus(${t.id}, 'Completed')" style="background:#10b981; color:white; border:none; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Mark task completed">Mark Done ✅</button>
+                    `}
+                    <button onclick="openTaskModalById(${t.id})" style="background:#3b82f6; color:white; border:none; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Edit task details">Edit ✏️</button>
+                    <button onclick="deleteTask(${t.id})" style="background:#ef4444; color:white; border:none; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Delete task permanently">Delete 🗑️</button>
+                </div>
+            `;
+            listDiv.appendChild(div);
+        });
+    }
+
+    function openTaskModalById(id) {
+        const task = allTasks.find(t => t.id === id);
+        openTaskModal(task);
+    }
+
+    function openTaskModal(task = null) {
+        const errorBox = document.getElementById('taskModalError');
+        if (errorBox) errorBox.style.display = 'none';
+
+        if (task) {
+            document.getElementById('taskModalTitle').innerText = '✏️ Edit Upcoming Task';
+            document.getElementById('taskIdInput').value = task.id || '';
+            document.getElementById('taskTitleInput').value = task.task_title || '';
+            document.getElementById('taskDescInput').value = task.description || '';
+            document.getElementById('taskDueDateInput').value = task.due_date || '';
+            document.getElementById('taskDueTimeInput').value = task.due_time || '';
+            document.getElementById('taskReminderInput').value = (task.reminder_offset !== undefined && task.reminder_offset !== null) ? String(task.reminder_offset) : '30';
+            document.getElementById('taskStatusInput').value = task.status || 'Pending';
+        } else {
+            document.getElementById('taskModalTitle').innerText = '➕ Add Upcoming Task';
+            document.getElementById('taskIdInput').value = '';
+            document.getElementById('taskTitleInput').value = '';
+            document.getElementById('taskDescInput').value = '';
+            document.getElementById('taskDueDateInput').value = '';
+            document.getElementById('taskDueTimeInput').value = '';
+            document.getElementById('taskReminderInput').value = '30';
+            document.getElementById('taskStatusInput').value = 'Pending';
+        }
+
+        document.getElementById('taskModal').style.display = 'flex';
+    }
+
+    function closeTaskModal() {
+        document.getElementById('taskModal').style.display = 'none';
+    }
+
+    async function saveTask() {
+        const id = document.getElementById('taskIdInput').value;
+        const title = document.getElementById('taskTitleInput').value.trim();
+        const desc = document.getElementById('taskDescInput').value.trim();
+        const dueDate = document.getElementById('taskDueDateInput').value;
+        const dueTime = document.getElementById('taskDueTimeInput').value;
+        const reminderOffset = parseInt(document.getElementById('taskReminderInput').value || '30');
+        const status = document.getElementById('taskStatusInput').value;
+        const errorBox = document.getElementById('taskModalError');
+        const saveBtn = document.getElementById('saveTaskBtn');
+
+        if (!title) {
+            if (errorBox) {
+                errorBox.innerText = 'Task title cannot be empty.';
+                errorBox.style.display = 'block';
+            }
+            return;
+        }
+
+        const endpoint = id ? '/update_task' : '/add_task';
+        const payload = {
+            id: id ? parseInt(id) : undefined,
+            task_id: id ? parseInt(id) : undefined,
+            task_title: title,
+            description: desc,
+            due_date: dueDate,
+            due_time: dueTime,
+            deadline_text: (dueDate || dueTime) ? `${dueDate} ${dueTime}`.trim() : 'No deadline specified',
+            reminder_offset: reminderOffset,
+            status: status
+        };
+
+        saveBtn.disabled = true;
+        saveBtn.innerText = 'Saving...';
+
+        try {
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+
+            if (!res.ok || data.error) {
+                if (errorBox) {
+                    errorBox.innerText = data.error || 'Failed to save task. Please try again.';
+                    errorBox.style.display = 'block';
+                }
                 return;
             }
 
-            pendingTasks.forEach(t => {
-                const div = document.createElement('div');
-                div.style.padding = '14px'; 
-                div.style.borderBottom = '1px solid #e2e8f0';
-                div.style.display = 'flex';
-                div.style.justifyContent = 'space-between';
-                div.style.alignItems = 'center';
-                div.style.flexWrap = 'wrap';
-                div.style.gap = '10px';
-                
-                div.innerHTML = `
-                    <div>
-                        <strong>${t.task_title}</strong>
-                        <div style="font-size: 12px; color: #64748b; margin-top: 3px;">Due: ${t.deadline_text || 'Asap'} | Alert: ${t.buffer_lead || '30m prior'}</div>
-                    </div>
-                    <div style="display: flex; gap: 8px;">
-                        <button onclick="updateTaskStatus(${t.id}, 'Completed')" style="background:#10b981; color:white; border:none; padding:8px 12px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">Mark Done ✅</button>
-                        <button onclick="updateTaskStatus(${t.id}, 'Dismissed')" style="background:#ef4444; color:white; border:none; padding:8px 12px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">Dismiss ✕</button>
-                    </div>
-                `;
-                listDiv.appendChild(div);
-            });
-        } catch (e) { console.error('Error loading tasks:', e); }
+            closeTaskModal();
+            showTaskAlert(id ? 'Task updated successfully!' : 'Task added successfully!', 'success');
+            await loadTasks();
+
+            if (window.AndroidGateway && window.AndroidGateway.syncReminders) {
+                try { window.AndroidGateway.syncReminders(); } catch(e){}
+            }
+        } catch (e) {
+            if (errorBox) {
+                errorBox.innerText = 'Network error saving task: ' + e.message;
+                errorBox.style.display = 'block';
+            }
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.innerText = 'Save Task 💾';
+        }
     }
 
     async function updateTaskStatus(taskId, status) {
@@ -689,37 +1044,291 @@
                 body: JSON.stringify({ task_id: taskId, status: status })
             });
             const data = await res.json();
-            if (data.status === 'success') {
-                loadTasks();
+            if (res.ok && data.status === 'success') {
+                showTaskAlert(`Task marked as ${status}!`, 'success');
+                await loadTasks();
+                if (window.AndroidGateway && window.AndroidGateway.syncReminders) {
+                    try { window.AndroidGateway.syncReminders(); } catch(e){}
+                }
+            } else {
+                showTaskAlert(data.error || 'Failed to update task status.', 'error');
             }
         } catch (e) {
             console.error('Error updating task status:', e);
+            showTaskAlert('Network error updating task status.', 'error');
         }
     }
+
+    async function deleteTask(taskId) {
+        if (!confirm('Are you sure you want to permanently delete this task?')) return;
+        try {
+            const res = await fetch('/delete_task', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ task_id: taskId })
+            });
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                showTaskAlert('Task deleted successfully.', 'success');
+                await loadTasks();
+                if (window.AndroidGateway && window.AndroidGateway.cancelTask) {
+                    try { window.AndroidGateway.cancelTask(taskId); } catch(e){}
+                }
+                if (window.AndroidGateway && window.AndroidGateway.syncReminders) {
+                    try { window.AndroidGateway.syncReminders(); } catch(e){}
+                }
+            } else {
+                showTaskAlert(data.error || 'Failed to delete task.', 'error');
+            }
+        } catch (e) {
+            console.error('Error deleting task:', e);
+            showTaskAlert('Network error deleting task.', 'error');
+        }
+    }
+
+    // --- MEETING LINKS MANAGEMENT ---
+    let allMeetings = [];
 
     async function loadMeetings() {
         try {
             const res = await fetch('/get_meetings');
             if (res.status === 401) return;
             const data = await res.json();
-            const listDiv = document.getElementById('meetingsList');
-            listDiv.innerHTML = '';
-            const meetings = data.meetings || [];
-            document.getElementById('sidebarMeetingCount').innerText = meetings.length;
+            allMeetings = data.meetings || [];
+            
+            const badgeEl = document.getElementById('sidebarMeetingCount');
+            if (badgeEl) badgeEl.innerText = allMeetings.length;
 
-            if (meetings.length === 0) {
-                listDiv.innerHTML = '<div style="color: #888; font-size: 13px; text-align: center; padding: 20px;">No scheduled meetings recorded.</div>';
+            renderMeetings();
+        } catch (e) {
+            console.error('Error loading meetings:', e);
+        }
+    }
+
+    function renderMeetings() {
+        const listDiv = document.getElementById('meetingsList');
+        if (!listDiv) return;
+        listDiv.innerHTML = '';
+
+        if (allMeetings.length === 0) {
+            listDiv.innerHTML = '<div style="color: #888; font-size: 13px; text-align: center; padding: 28px;">No scheduled meetings recorded yet. Click "+ Add Meeting Link" to save one.</div>';
+            return;
+        }
+
+        allMeetings.forEach(m => {
+            const div = document.createElement('div');
+            div.style.padding = '14px 16px';
+            div.style.borderBottom = '1px solid #e2e8f0';
+            div.style.display = 'flex';
+            div.style.justifyContent = 'space-between';
+            div.style.alignItems = 'center';
+            div.style.flexWrap = 'wrap';
+            div.style.gap = '12px';
+
+            const platformColors = {
+                'Zoom': '#2d8cff',
+                'Google Meet': '#00897b',
+                'MS Teams': '#5c6bc0',
+                'Webex': '#ea580c',
+                'Jitsi Meet': '#0284c7'
+            };
+            const pColor = platformColors[m.platform] || '#2563eb';
+            const mStatus = m.status || 'Scheduled';
+            const statusColor = mStatus === 'Completed' ? '#10b981' : (mStatus === 'Cancelled' ? '#ef4444' : '#2563eb');
+            const remLabel = (m.reminder_offset !== undefined && m.reminder_offset !== null && parseInt(m.reminder_offset) > 0) ? `🔔 ${m.reminder_offset}m prior` : '🔕 No reminder';
+            const timeDisplay = (m.meeting_date || m.start_time) ? `${m.meeting_date || ''} ${m.start_time || ''}`.trim() : (m.scheduled_time || 'Upcoming');
+
+            div.innerHTML = `
+                <div style="flex: 1; min-width: 220px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                        <span class="badge" style="background: ${pColor}; font-size: 11px;">${escapeHtml(m.platform)}</span>
+                        <span class="badge" style="background: ${statusColor}; font-size: 10px;">${escapeHtml(mStatus)}</span>
+                        <strong style="font-size: 14px; color: #0f172a;">${escapeHtml(m.title || m.platform + ' Call')}</strong>
+                    </div>
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 4px; display: flex; gap: 14px; flex-wrap: wrap;">
+                        <span>🕒 <strong>Time:</strong> ${escapeHtml(timeDisplay)}</span>
+                        <span>${escapeHtml(remLabel)}</span>
+                    </div>
+                    <div style="font-size: 11px; color: #94a3b8; word-break: break-all;">
+                        🔗 <a href="${escapeHtml(m.meeting_url)}" target="_blank" style="color: #3b82f6; text-decoration: none;">${escapeHtml(m.meeting_url)}</a>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <a href="${escapeHtml(m.meeting_url)}" target="_blank" class="directive-card" style="margin:0; text-decoration:none; background:#2563eb; color:white; padding:7px 13px; border-radius:6px; font-size:12px; font-weight:600;">Launch 🚀</a>
+                    <button onclick="copyMeetingLinkById(${m.id})" style="background:#f1f5f9; color:#334155; border:1px solid var(--border); padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Copy URL">Copy 📋</button>
+                    <button onclick="openMeetingModalById(${m.id})" style="background:#3b82f6; color:white; border:none; padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Edit meeting">Edit ✏️</button>
+                    <button onclick="deleteMeeting(${m.id})" style="background:#ef4444; color:white; border:none; padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Delete meeting permanently">Delete 🗑️</button>
+                </div>
+            `;
+            listDiv.appendChild(div);
+        });
+    }
+
+    function openMeetingModalById(id) {
+        const meeting = allMeetings.find(m => m.id === id);
+        openMeetingModal(meeting);
+    }
+
+    function copyMeetingLinkById(id) {
+        const meeting = allMeetings.find(m => m.id === id);
+        if (meeting && meeting.meeting_url) {
+            copyMeetingLink(meeting.meeting_url);
+        }
+    }
+
+    function openMeetingModal(meeting = null) {
+        const errorBox = document.getElementById('meetingModalError');
+        if (errorBox) errorBox.style.display = 'none';
+
+        if (meeting) {
+            document.getElementById('meetingModalTitle').innerText = '✏️ Edit Meeting Link';
+            document.getElementById('meetingIdInput').value = meeting.id || '';
+            document.getElementById('meetingTitleInput').value = meeting.title || '';
+            document.getElementById('meetingPlatformInput').value = meeting.platform || 'Auto-Detect';
+            document.getElementById('meetingUrlInput').value = meeting.meeting_url || '';
+            document.getElementById('meetingDateInput').value = meeting.meeting_date || '';
+            document.getElementById('meetingTimeInput').value = meeting.start_time || '';
+            document.getElementById('meetingReminderInput').value = (meeting.reminder_offset !== undefined && meeting.reminder_offset !== null) ? String(meeting.reminder_offset) : '30';
+            document.getElementById('meetingStatusInput').value = meeting.status || 'Scheduled';
+        } else {
+            document.getElementById('meetingModalTitle').innerText = '➕ Add Meeting Link';
+            document.getElementById('meetingIdInput').value = '';
+            document.getElementById('meetingTitleInput').value = '';
+            document.getElementById('meetingPlatformInput').value = 'Auto-Detect';
+            document.getElementById('meetingUrlInput').value = '';
+            document.getElementById('meetingDateInput').value = '';
+            document.getElementById('meetingTimeInput').value = '';
+            document.getElementById('meetingReminderInput').value = '30';
+            document.getElementById('meetingStatusInput').value = 'Scheduled';
+        }
+
+        document.getElementById('meetingModal').style.display = 'flex';
+    }
+
+    function closeMeetingModal() {
+        document.getElementById('meetingModal').style.display = 'none';
+    }
+
+    async function saveMeeting() {
+        const id = document.getElementById('meetingIdInput').value;
+        const title = document.getElementById('meetingTitleInput').value.trim();
+        const platform = document.getElementById('meetingPlatformInput').value;
+        let url = document.getElementById('meetingUrlInput').value.trim();
+        const mDate = document.getElementById('meetingDateInput').value;
+        const mTime = document.getElementById('meetingTimeInput').value;
+        const reminderOffset = parseInt(document.getElementById('meetingReminderInput').value || '30');
+        const status = document.getElementById('meetingStatusInput').value;
+        const errorBox = document.getElementById('meetingModalError');
+        const saveBtn = document.getElementById('saveMeetingBtn');
+
+        if (!url) {
+            if (errorBox) {
+                errorBox.innerText = 'Please enter a meeting link URL.';
+                errorBox.style.display = 'block';
+            }
+            return;
+        }
+
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            if (url.includes('.')) {
+                url = 'https://' + url;
+            } else {
+                if (errorBox) {
+                    errorBox.innerText = 'Invalid URL. Please enter a valid meeting link (e.g. https://meet.google.com/xyz or https://zoom.us/j/123).';
+                    errorBox.style.display = 'block';
+                }
                 return;
             }
-            meetings.forEach(m => {
-                const div = document.createElement('div');
-                div.style.padding = '14px'; div.style.borderBottom = '1px solid #e2e8f0';
-                div.style.display = 'flex'; div.style.justifyContent = 'space-between'; div.style.alignItems = 'center';
-                div.style.flexWrap = 'wrap'; div.style.gap = '10px';
-                div.innerHTML = `<div><strong>${m.platform} Call</strong><div style="font-size: 12px; color: #64748b; margin-top: 3px;">Time: ${m.scheduled_time}</div></div><a href="${m.meeting_url}" target="_blank" class="directive-card" style="margin:0; text-decoration:none; background:#2563eb; color:white; padding:6px 14px; border-radius:6px;">Launch 🚀</a>`;
-                listDiv.appendChild(div);
+        }
+
+        const endpoint = id ? '/update_meeting' : '/add_meeting';
+        const payload = {
+            id: id ? parseInt(id) : undefined,
+            meeting_id: id ? parseInt(id) : undefined,
+            title: title,
+            platform: platform,
+            meeting_url: url,
+            meeting_date: mDate,
+            start_time: mTime,
+            scheduled_time: (mDate || mTime) ? `${mDate} ${mTime}`.trim() : 'Unknown',
+            reminder_offset: reminderOffset,
+            status: status
+        };
+
+        saveBtn.disabled = true;
+        saveBtn.innerText = 'Saving...';
+
+        try {
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
-        } catch (e) { console.error(e); }
+            const data = await res.json();
+
+            if (!res.ok || data.error) {
+                if (errorBox) {
+                    errorBox.innerText = data.error || 'Failed to save meeting link. Please check the URL and try again.';
+                    errorBox.style.display = 'block';
+                }
+                return;
+            }
+
+            closeMeetingModal();
+            showMeetingAlert(id ? 'Meeting link updated successfully!' : 'Meeting link saved successfully!', 'success');
+            await loadMeetings();
+
+            if (window.AndroidGateway && window.AndroidGateway.syncReminders) {
+                try { window.AndroidGateway.syncReminders(); } catch(e){}
+            }
+        } catch (e) {
+            if (errorBox) {
+                errorBox.innerText = 'Network error saving meeting link: ' + e.message;
+                errorBox.style.display = 'block';
+            }
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.innerText = 'Save Link 💾';
+        }
+    }
+
+    async function deleteMeeting(meetingId) {
+        if (!confirm('Are you sure you want to permanently delete this meeting link?')) return;
+        try {
+            const res = await fetch('/delete_meeting', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: meetingId })
+            });
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                showMeetingAlert('Meeting link deleted successfully.', 'success');
+                await loadMeetings();
+                if (window.AndroidGateway && window.AndroidGateway.cancelMeeting) {
+                    try { window.AndroidGateway.cancelMeeting(meetingId); } catch(e){}
+                }
+                if (window.AndroidGateway && window.AndroidGateway.syncReminders) {
+                    try { window.AndroidGateway.syncReminders(); } catch(e){}
+                }
+            } else {
+                showMeetingAlert(data.error || 'Failed to delete meeting link.', 'error');
+            }
+        } catch (e) {
+            console.error('Error deleting meeting:', e);
+            showMeetingAlert('Network error deleting meeting link.', 'error');
+        }
+    }
+
+    function copyMeetingLink(url) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(() => {
+                showMeetingAlert('Meeting link copied to clipboard!', 'success');
+            }).catch(() => {
+                prompt('Copy meeting link:', url);
+            });
+        } else {
+            prompt('Copy meeting link:', url);
+        }
     }
 
     async function processMessage() {
@@ -884,14 +1493,19 @@
             alert('🛡️ Dispatch successfully recalled! No message was sent.');
             activeReplyId = null;
         }
-    }
-
     window.onload = () => {
+        if (window.AndroidGateway && window.AndroidGateway.setLoggedInUser) {
+            try {
+                window.AndroidGateway.setLoggedInUser('{{ username }}');
+            } catch(e) { console.log('Android bridge notice:', e); }
+        }
         loadSettings();
         loadMeetings();
         loadTasks();
         pollLiveFeed();
         setInterval(pollLiveFeed, 4000);
+        setInterval(loadMeetings, 8000);
+        setInterval(loadTasks, 8000);
     };
 </script>
 
