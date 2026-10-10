@@ -1,4 +1,5 @@
 import time
+from datetime import datetime, timezone
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from predict import analyze_message
 from temporal_engine import (
@@ -15,6 +16,9 @@ from database import (
     get_db,
     init_db,
     log_analysis,
+    get_p1_alert_count,
+    get_total_message_count,
+    get_quarantined_messages,
     register_user,
     verify_user,
     get_meetings_for_user,
@@ -37,6 +41,7 @@ init_db()
 
 STAGED_REPLIES = {}
 LIVE_FEED_ALERTS = []
+QUARANTINED_ALERTS = []
 
 def resolve_username_or_default(explicit_user=None):
     """
@@ -116,12 +121,12 @@ def logout():
 
 @app.route('/get_settings', methods=['GET'])
 def get_settings():
-    if not session.get('logged_in'):
+    username = resolve_username_or_default(request.args.get('username') or session.get('username'))
+    if not username:
         return jsonify({'error': 'Unauthorized'}), 401
-    username = session.get('username')
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM user_settings WHERE username = ?", (username,))
+    cursor.execute("SELECT * FROM user_settings WHERE LOWER(username) = LOWER(?)", (username,))
     row = cursor.fetchone()
     conn.close()
 
@@ -130,49 +135,53 @@ def get_settings():
             'active_hours_enabled': 1,
             'work_start_time': '09:00',
             'work_end_time': '17:00',
-            'allow_auto_reply': 0,
+            'work_mode_enabled': 1,
             'dnd_bypass_enabled': 1,
             'default_persona': 'casual',
             'preferences_configured': 0
         })
     
+    # Safe key access for row
+    row_keys = row.keys() if hasattr(row, 'keys') else []
+    work_mode = row['work_mode_enabled'] if 'work_mode_enabled' in row_keys else 1
+
     return jsonify({
-        'active_hours_enabled': row['active_hours_enabled'],
+        'active_hours_enabled': row['active_hours_enabled'] if 'active_hours_enabled' in row_keys else 1,
         'work_start_time': row['work_start_time'] or '09:00',
         'work_end_time': row['work_end_time'] or '17:00',
-        'allow_auto_reply': row['allow_auto_reply'],
-        'dnd_bypass_enabled': row['dnd_bypass_enabled'],
-        'default_persona': row['default_persona'],
+        'work_mode_enabled': work_mode,
+        'dnd_bypass_enabled': row['dnd_bypass_enabled'] if 'dnd_bypass_enabled' in row_keys else 1,
+        'default_persona': row['default_persona'] or 'casual',
         'preferences_configured': 1
     })
 
 @app.route('/update_settings', methods=['POST'])
 def update_settings():
-    if not session.get('logged_in'):
+    username = resolve_username_or_default(session.get('username'))
+    if not username:
         return jsonify({'error': 'Unauthorized'}), 401
-    username = session.get('username')
     data = request.json or {}
     
-    active_enabled = 1 if data.get('active_hours_enabled') else 0
+    active_enabled = 1 if data.get('active_hours_enabled', True) else 0
     work_start = data.get('work_start_time', '09:00')
     work_end = data.get('work_end_time', '17:00')
-    auto_reply = 1 if data.get('allow_auto_reply') else 0
+    work_mode = 1 if data.get('work_mode_enabled', True) else 0
     dnd_bypass = 1 if data.get('dnd_bypass_enabled', True) else 0
     persona = data.get('persona', 'casual')
 
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO user_settings (username, active_hours_enabled, work_start_time, work_end_time, allow_auto_reply, dnd_bypass_enabled, default_persona)
+        INSERT INTO user_settings (username, active_hours_enabled, work_start_time, work_end_time, work_mode_enabled, dnd_bypass_enabled, default_persona)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(username) DO UPDATE SET
             active_hours_enabled = excluded.active_hours_enabled,
             work_start_time = excluded.work_start_time,
             work_end_time = excluded.work_end_time,
-            allow_auto_reply = excluded.allow_auto_reply,
+            work_mode_enabled = excluded.work_mode_enabled,
             dnd_bypass_enabled = excluded.dnd_bypass_enabled,
             default_persona = excluded.default_persona
-    ''', (username, active_enabled, work_start, work_end, auto_reply, dnd_bypass, persona))
+    ''', (username, active_enabled, work_start, work_end, work_mode, dnd_bypass, persona))
     conn.commit()
     conn.close()
 
@@ -733,13 +742,18 @@ def ingest_notification():
         badge_color = results.get('Badge Color', '#10B981')
         urgency = results.get('Urgency', ['Medium'])[0]
         sentiment = results.get('Sentiment', ['Neutral'])[0]
-    except Exception:
+        classification = results.get('Classification', 'Standard')
+    except Exception as e:
+        print("Analysis error:", e)
         priority = "STANDARD"
         badge_color = "#10B981"
         urgency = "Medium"
         sentiment = "Neutral"
+        classification = "Standard"
 
     directives = [m['directive'] for m in all_meetings]
+    utc_now = datetime.now(timezone.utc).isoformat()
+    is_spam = ('spam' in priority.lower()) or (classification == 'Spam')
 
     alert_item = {
         'id': int(time.time() * 1000),
@@ -748,18 +762,25 @@ def ingest_notification():
         'message': message,
         'priority': priority,
         'badge_color': badge_color,
+        'classification': classification,
         'directives': directives,
         'meetings': saved_meetings,
         'meeting_url': saved_meetings[0]['meeting_url'] if saved_meetings else None,
         'meeting_platform': saved_meetings[0]['platform'] if saved_meetings else None,
         'task': saved_task,
-        'status_tag': "Live",
+        'status_tag': "Quarantined" if is_spam else "Live",
+        'utc_timestamp': utc_now,
         'timestamp': time.strftime("%I:%M %p")
     }
 
-    LIVE_FEED_ALERTS.insert(0, alert_item)
-    if len(LIVE_FEED_ALERTS) > 50:
-        LIVE_FEED_ALERTS.pop()
+    if is_spam:
+        QUARANTINED_ALERTS.insert(0, alert_item)
+        if len(QUARANTINED_ALERTS) > 50:
+            QUARANTINED_ALERTS.pop()
+    else:
+        LIVE_FEED_ALERTS.insert(0, alert_item)
+        if len(LIVE_FEED_ALERTS) > 50:
+            LIVE_FEED_ALERTS.pop()
 
     log_analysis(
         username=username,
@@ -772,14 +793,37 @@ def ingest_notification():
     return jsonify({
         'status': 'ingested',
         'alert': alert_item,
+        'classification': classification,
+        'priority': priority,
         'meetings_saved': len(saved_meetings),
         'task_saved': bool(saved_task),
-        'delivery_mode': 'Live'
+        'delivery_mode': 'Quarantine' if is_spam else 'Live'
     })
 
 @app.route('/get_feed', methods=['GET'])
 def get_feed():
-    return jsonify({'feed': LIVE_FEED_ALERTS})
+    username = resolve_username_or_default(session.get('username'))
+    db_p1 = get_p1_alert_count(username)
+    feed_p1 = sum(1 for item in LIVE_FEED_ALERTS if 'p1' in (item.get('priority') or '').lower() or 'urgent' in (item.get('priority') or '').lower())
+    p1_count = max(db_p1, feed_p1)
+    
+    db_total = get_total_message_count(username)
+    total_count = max(db_total, len(LIVE_FEED_ALERTS))
+
+    return jsonify({
+        'feed': LIVE_FEED_ALERTS,
+        'p1_count': p1_count,
+        'total_read': total_count
+    })
+
+@app.route('/get_quarantine', methods=['GET'])
+def get_quarantine_route():
+    username = resolve_username_or_default(session.get('username'))
+    db_quarantine = get_quarantined_messages(username)
+    return jsonify({
+        'quarantine': QUARANTINED_ALERTS,
+        'db_quarantine': db_quarantine
+    })
 
 @app.route('/stage_reply', methods=['POST'])
 def stage_reply():

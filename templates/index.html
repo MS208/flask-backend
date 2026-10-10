@@ -177,46 +177,7 @@
         }
         .undo-btn:hover { background: #dc2626; }
 
-        /* Mobile Hamburger & Responsive Breakpoints */
-        .mobile-hamburger {
-            display: none;
-            background: none;
-            border: none;
-            font-size: 24px;
-            color: var(--text-dark);
-            cursor: pointer;
-            margin-right: 12px;
-        }
-
-        @media (max-width: 768px) {
-            body { flex-direction: column; overflow: auto; height: auto; }
-            .sidebar {
-                position: fixed;
-                left: -260px;
-                top: 0;
-                height: 100vh;
-                z-index: 1100;
-                transition: left 0.3s ease;
-            }
-            .sidebar.mobile-open {
-                left: 0;
-            }
-            .mobile-hamburger {
-                display: block;
-            }
-            .main-wrapper {
-                padding: 16px;
-                height: 100vh;
-                overflow-y: auto;
-            }
-            .stat-grid {
-                grid-template-columns: 1fr;
-                gap: 12px;
-                margin-bottom: 16px;
-            }
-            .grid {
-                grid-template-columns: 1fr;
-            }
+        /* Responsive and Navigation Bar Styles */
         .top-nav-bar {
             display: flex;
             justify-content: space-between;
@@ -250,31 +211,6 @@
             font-weight: 700;
             color: var(--text-dark);
         }
-        .header-user-pill {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: #f8fafc;
-            border: 1px solid var(--border);
-            padding: 4px 12px 4px 6px;
-            border-radius: 20px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .header-user-pill:hover { background: #e2e8f0; }
-        .header-avatar {
-            width: 26px;
-            height: 26px;
-            border-radius: 50%;
-            background: #f97316;
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 13px;
-            font-weight: bold;
-        }
-        .header-username { font-size: 13px; font-weight: 600; color: #334155; }
         .quick-dropdown-wrapper { position: relative; }
         .quick-three-dots-btn {
             background: #f1f5f9;
@@ -328,6 +264,7 @@
             backdrop-filter: blur(2px);
         }
         .sidebar.desktop-collapsed { display: none; }
+        .feed-card.important { border-left-color: var(--warning); background: #fffdfa; }
 
         @media (max-width: 768px) {
             body { flex-direction: column; overflow: auto; height: auto; }
@@ -377,9 +314,6 @@
             <li class="nav-item" data-view="overviewView" onclick="switchView('overviewView', this); closeNavMenu();">
                 <span class="nav-label"><span>📡</span> Smart Messaging Gateway</span>
             </li>
-            <li class="nav-item" data-view="profileView" onclick="switchView('profileView', this); closeNavMenu();">
-                <span class="nav-label"><span>👤</span> Admin (User Profile)</span>
-            </li>
             <li class="nav-item active" data-view="overviewView" onclick="switchView('overviewView', this); closeNavMenu();">
                 <span class="nav-label"><span>📊</span> Overview</span>
             </li>
@@ -422,10 +356,6 @@
             </span>
         </div>
         <div style="display: flex; align-items: center; gap: 10px;">
-            <div class="header-user-pill" onclick="switchView('profileView', document.querySelector('[data-view=\'profileView\']'))" title="Admin Profile">
-                <div class="header-avatar">{{ username[0] if username else 'A' }}</div>
-                <span class="header-username">{{ username if username else 'Admin' }}</span>
-            </div>
             <div class="quick-dropdown-wrapper">
                 <button class="quick-three-dots-btn" onclick="toggleQuickMenu(event)" title="Quick Actions & Navigation Menu" aria-label="Options">
                     <span>⋮</span>
@@ -542,9 +472,24 @@
                     </div>
                 </div>
                 <label style="display: flex; justify-content: space-between; align-items: center; padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-weight: 600; font-size: 13px;">
-                    <span>🤖 Allow Autonomous Auto-Reply</span>
-                    <input type="checkbox" id="allowAutoReplyToggle" onchange="saveBoundarySettings()" style="width: 18px; height: 18px;">
+                    <div>
+                        <span>💼 Work Mode (Assistance & Categorization)</span>
+                        <div style="font-size: 11px; color: #64748b; font-weight: 400; margin-top: 2px;">Focus on important work items and quiet casual chats during work hours.</div>
+                    </div>
+                    <input type="checkbox" id="workModeToggle" onchange="saveBoundarySettings()" style="width: 18px; height: 18px;">
                 </label>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-size: 13px; font-weight: 600; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <span>🎭 Assistant Tone & Persona:</span>
+                        <div style="font-size: 11px; color: #64748b; font-weight: 400; margin-top: 2px;">Default tone for suggestions and draft assistance.</div>
+                    </div>
+                    <select id="settingsToneSelect" onchange="syncToneAndSave(this.value)" style="padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: white;">
+                        <option value="casual">Casual & Friendly</option>
+                        <option value="formal">Formal & Professional</option>
+                        <option value="short">Short & Direct</option>
+                        <option value="minimal">Minimalist</option>
+                    </select>
+                </div>
                 <label style="display: flex; justify-content: space-between; align-items: center; padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-weight: 600; font-size: 13px;">
                     <span>🚨 Emergency DND Bypass (Priority Only)</span>
                     <input type="checkbox" id="dndBypassToggle" onchange="saveBoundarySettings()" style="width: 18px; height: 18px;">
@@ -653,7 +598,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
             <div>
                 <span style="font-size: 13px; font-weight: 600;">✍ Active Persona:</span>
-                <select id="userPersona" style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 13px;" onchange="saveBoundarySettings()">
+                <select id="userPersona" style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 13px;" onchange="syncPersonaFromAssistant(this.value)">
                     <option value="casual">Casual & Friendly</option>
                     <option value="formal">Formal & Professional</option>
                     <option value="short">Short & Direct</option>
@@ -1049,10 +994,14 @@
             document.getElementById('activeHoursToggle').checked = data.active_hours_enabled === 1;
             document.getElementById('workStartTime').value = data.work_start_time || '09:00';
             document.getElementById('workEndTime').value = data.work_end_time || '17:00';
-            document.getElementById('allowAutoReplyToggle').checked = data.allow_auto_reply === 1;
+            const workModeEl = document.getElementById('workModeToggle');
+            if (workModeEl) workModeEl.checked = data.work_mode_enabled === 1;
             document.getElementById('dndBypassToggle').checked = data.dnd_bypass_enabled === 1;
             if (data.default_persona) {
-                document.getElementById('userPersona').value = data.default_persona;
+                const toneEl = document.getElementById('settingsToneSelect');
+                if (toneEl) toneEl.value = data.default_persona;
+                const personaEl = document.getElementById('userPersona');
+                if (personaEl) personaEl.value = data.default_persona;
             }
 
             if (!data.preferences_configured && !sessionStorage.getItem('skipped_preferences')) {
@@ -1091,19 +1040,33 @@
     }
 
     async function saveBoundarySettings() {
+        const toneVal = document.getElementById('settingsToneSelect') ? document.getElementById('settingsToneSelect').value : (document.getElementById('userPersona') ? document.getElementById('userPersona').value : 'casual');
+        const workModeVal = document.getElementById('workModeToggle') ? document.getElementById('workModeToggle').checked : true;
         const payload = {
             active_hours_enabled: document.getElementById('activeHoursToggle').checked,
             work_start_time: document.getElementById('workStartTime').value,
             work_end_time: document.getElementById('workEndTime').value,
-            allow_auto_reply: document.getElementById('allowAutoReplyToggle').checked,
+            work_mode_enabled: workModeVal,
             dnd_bypass_enabled: document.getElementById('dndBypassToggle').checked,
-            persona: document.getElementById('userPersona').value
+            persona: toneVal
         };
         await fetch('/update_settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
+    }
+
+    function syncToneAndSave(val) {
+        const pEl = document.getElementById('userPersona');
+        if (pEl) pEl.value = val;
+        saveBoundarySettings();
+    }
+
+    function syncPersonaFromAssistant(val) {
+        const tEl = document.getElementById('settingsToneSelect');
+        if (tEl) tEl.value = val;
+        saveBoundarySettings();
     }
 
     // --- UTILITY & ALERT HELPERS ---
@@ -1160,6 +1123,22 @@
         renderTasks();
     }
 
+    function isUpcomingCommitment(t) {
+        if (!t) return false;
+        const st = (t.status || 'Pending').toLowerCase();
+        if (st === 'completed' || st === 'cancelled' || st === 'dismissed') return false;
+        if (t.due_date) {
+            try {
+                const timeStr = t.due_time ? t.due_time : '23:59:59';
+                const dueDt = new Date(`${t.due_date}T${timeStr}`);
+                if (!isNaN(dueDt.getTime()) && dueDt < new Date()) {
+                    return false;
+                }
+            } catch (e) {}
+        }
+        return true;
+    }
+
     async function loadTasks() {
         try {
             const res = await fetch('/get_tasks');
@@ -1167,11 +1146,11 @@
             const data = await res.json();
             allTasks = data.tasks || [];
 
-            const pendingTasks = allTasks.filter(t => !t.status || t.status === 'Pending');
+            const upcomingTasks = allTasks.filter(isUpcomingCommitment);
             const countEl = document.getElementById('sidebarTaskCount');
-            if (countEl) countEl.innerText = pendingTasks.length;
+            if (countEl) countEl.innerText = upcomingTasks.length;
             const statEl = document.getElementById('tasksStat');
-            if (statEl) statEl.innerText = pendingTasks.length;
+            if (statEl) statEl.innerText = upcomingTasks.length;
 
             renderTasks();
         } catch (e) {
@@ -1700,26 +1679,30 @@
 
             document.getElementById('resultsSection').style.display = 'block';
 
-            if (data.priority.includes('URGENT') || data.meeting_info || data.deadline_info) {
+            if (data.priority.includes('URGENT') || data.priority.includes('IMPORTANT') || data.meeting_info || data.deadline_info) {
                 const overviewFeed = document.getElementById('overviewFeed');
                 const newCard = document.createElement('div');
                 const isUrgent = data.priority.includes('URGENT');
+                const isImportant = data.priority.includes('IMPORTANT');
                 const isMeeting = !!data.meeting_info;
+                const cardType = isUrgent ? 'urgent' : (isImportant ? 'important' : (isMeeting ? 'meeting' : 'task'));
 
-                newCard.className = `feed-card ${isUrgent ? 'urgent' : isMeeting ? 'meeting' : 'task'}`;
+                const localTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                newCard.className = `feed-card ${cardType}`;
                 newCard.innerHTML = `
                     <div class="feed-top">
-                        <span>Assistant Ingest</span>
+                        <span>Assistant Ingest • <small style="color: #64748b;">${localTime}</small></span>
                         <span class="badge" style="background:${data.badge_color};">${data.priority}</span>
                     </div>
-                    <p style="font-size: 0.85rem; color: #334155;">${input}</p>
-                    ${isMeeting ? `<div style="margin-top: 8px;"><a href="${data.meeting_info.join_url}" target="_blank" class="directive-card" style="margin:0; text-decoration:none; background:#2563eb; color:white; display:inline-block; padding:4px 10px;">Join ${data.meeting_info.platform} 🚀</a></div>` : ''}
+                    <p style="font-size: 0.85rem; color: #334155;">${escapeHtml(input)}</p>
+                    ${isMeeting ? `<div style="margin-top: 8px;"><a href="${escapeHtml(data.meeting_info.join_url)}" target="_blank" class="directive-card" style="margin:0; text-decoration:none; background:#2563eb; color:white; display:inline-block; padding:4px 10px;">Join ${escapeHtml(data.meeting_info.platform)} 🚀</a></div>` : ''}
                 `;
                 overviewFeed.prepend(newCard);
 
                 if (isUrgent) {
                     const urgStat = document.getElementById('urgentStat');
-                    urgStat.innerText = parseInt(urgStat.innerText || 0) + 1;
+                    if (urgStat) urgStat.innerText = parseInt(urgStat.innerText || 0) + 1;
                 }
             }
         } catch (e) {
@@ -1735,23 +1718,51 @@
             const overviewFeed = document.getElementById('overviewFeed');
             const feed = data.feed || [];
 
-            document.getElementById('totalStat').innerText = feed.length;
+            if (data.p1_count !== undefined) {
+                const urgStat = document.getElementById('urgentStat');
+                if (urgStat) urgStat.innerText = data.p1_count;
+            }
+            if (data.total_read !== undefined) {
+                const totStat = document.getElementById('totalStat');
+                if (totStat) totStat.innerText = data.total_read;
+            } else {
+                const totStat = document.getElementById('totalStat');
+                if (totStat) totStat.innerText = feed.length;
+            }
+
             if (feed.length === 0) return;
 
             overviewFeed.innerHTML = '';
             feed.forEach(item => {
-                const isUrgent = item.priority.includes('URGENT');
+                const isUrgent = item.priority && item.priority.includes('URGENT');
+                const isImportant = item.priority && item.priority.includes('IMPORTANT');
                 const isMeeting = !!item.meeting_url;
+                const cardType = isUrgent ? 'urgent' : (isImportant ? 'important' : (isMeeting ? 'meeting' : 'task'));
+
+                let timeStr = item.timestamp || '';
+                if (item.utc_timestamp) {
+                    try {
+                        const d = new Date(item.utc_timestamp);
+                        if (!isNaN(d.getTime())) {
+                            timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        }
+                    } catch (e) {}
+                }
+
+                let senderLabel = escapeHtml(item.app_source || 'Notification');
+                if (item.sender && item.sender.trim() && item.sender.trim().toLowerCase() !== 'admin' && item.sender.trim().toLowerCase() !== 'unknown') {
+                    senderLabel = `${escapeHtml(item.sender)} (${escapeHtml(item.app_source || 'Notification')})`;
+                }
 
                 const card = document.createElement('div');
-                card.className = `feed-card ${isUrgent ? 'urgent' : isMeeting ? 'meeting' : 'task'}`;
+                card.className = `feed-card ${cardType}`;
                 card.innerHTML = `
                     <div class="feed-top">
-                        <span>${item.sender} (${item.app_source}) • <small style="color: #64748b;">${item.timestamp}</small></span>
+                        <span>${senderLabel} • <small style="color: #64748b;">${timeStr}</small></span>
                         <span class="badge" style="background:${item.badge_color};">${item.priority}</span>
                     </div>
-                    <p style="font-size: 0.85rem; color: #334155;">${item.message}</p>
-                    ${isMeeting ? `<div style="margin-top: 8px;"><a href="${item.meeting_url}" target="_blank" class="directive-card" style="margin:0; text-decoration:none; background:#2563eb; color:white; display:inline-block; padding:4px 10px;">Join ${item.meeting_platform} 🚀</a></div>` : ''}
+                    <p style="font-size: 0.85rem; color: #334155;">${escapeHtml(item.message)}</p>
+                    ${isMeeting ? `<div style="margin-top: 8px;"><a href="${escapeHtml(item.meeting_url)}" target="_blank" class="directive-card" style="margin:0; text-decoration:none; background:#2563eb; color:white; display:inline-block; padding:4px 10px;">Join ${escapeHtml(item.meeting_platform || 'Meeting')} 🚀</a></div>` : ''}
                 `;
                 overviewFeed.appendChild(card);
             });

@@ -157,52 +157,140 @@ def generate_personalized_directives(text, persona, sentiment, spam, urgency, to
             unique.append(polished)
     return unique[:4]
 
+def classify_message_context(message_text, spam_model_pred="Legitimate", spam_conf=85.0):
+    text_lower = message_text.lower().strip()
+    words = set(re.findall(r'\b\w+\b', text_lower))
+
+    # 1. SPAM DETECTION (Confirmed deceptive / fraudulent / unwanted marketing)
+    has_meeting = any(p in text_lower for p in ["meet.google.com", "zoom.us", "teams.microsoft.com", "webex.com", "skype.com", "jit.si"])
+
+    is_spam = False
+    if not has_meeting:
+        scam_patterns = [
+            r'\b(won|winner|lottery|jackpot|cash prize|claim your prize)\b',
+            r'\b(pre-approved|guaranteed loan|no credit check)\b',
+            r'\b(crypto|bitcoin|investment)\b.*\b(guaranteed return|500%|passive income|double your money)\b',
+            r'\b(urgent wire|inheritance|foreign prince|beneficiary)\b',
+            r'\b(viagra|cialis|hot singles|casino bonus|free spins)\b',
+            r'\b(your account has been suspended|account locked).*verify.*(password|credentials|ssn|click here)\b'
+        ]
+        for pat in scam_patterns:
+            if re.search(pat, text_lower):
+                is_spam = True
+                break
+        if not is_spam and spam_model_pred == "Spam" and spam_conf >= 90.0:
+            is_spam = True
+
+    if is_spam:
+        return {
+            "classification": "Spam",
+            "priority": "LOW (SPAM)",
+            "urgency": "Low",
+            "badge_color": "#94a3b8"
+        }
+
+    # 2. URGENT DETECTION (Genuine emergencies / Life safety / Critical P1)
+    medical_emergency = [
+        "heart attack", "cardiac arrest", "ambulance", "emergency room", "accident on", "car crash",
+        "bleeding heavily", "unconscious", "cannot breathe", "choking", "icu", "severe injury",
+        "call 911", "call 112", "call 100", "hospital emergency"
+    ]
+    physical_danger = [
+        "building on fire", "fire in the", "gas leak", "robbery in progress", "someone breaking in",
+        "break-in", "hostage", "in immediate danger", "trapped inside", "send police now"
+    ]
+    critical_incident = [
+        "production is down", "prod is down", "production database down", "system outage",
+        "catastrophic outage", "server down", "sev-0", "sev-1", "p0 outage", "database corrupted",
+        "security breach", "ransomware attack", "active cyberattack", "unauthorized wire transfer"
+    ]
+
+    is_genuine_urgent = False
+    for phrase in (medical_emergency + physical_danger + critical_incident):
+        if phrase in text_lower:
+            is_genuine_urgent = True
+            break
+
+    if not is_genuine_urgent and ("emergency" in words or "sos" in words):
+        trivial_emergency = ["chocolate", "coffee", "boredom", "meme", "outfit", "joke"]
+        if not any(t in text_lower for t in trivial_emergency):
+            is_genuine_urgent = True
+
+    if is_genuine_urgent:
+        return {
+            "classification": "Urgent",
+            "priority": "P1 - URGENT",
+            "urgency": "High",
+            "badge_color": "#ef4444"
+        }
+
+    # 3. IMPORTANT DETECTION (Significant work / deliverables / meetings / tasks)
+    has_meeting_link = has_meeting or (
+        any(w in words for w in ["meeting", "sync", "webinar", "interview"]) and 
+        any(w in words for w in ["tomorrow", "today", "pm", "am", "join", "link", "scheduled"])
+    )
+    
+    work_terms = ["report", "project", "assignment", "presentation", "deck", "slides", "deliverable",
+                  "code", "pr", "pull request", "invoice", "contract", "client", "proposal", "audit",
+                  "exam", "syllabus", "homework", "task", "deployment", "release", "build"]
+    action_terms = ["submit", "review", "due", "deadline", "send", "finish", "complete", "sign",
+                    "approve", "approved", "finalize", "feedback", "status", "update"]
+    time_terms = ["today", "tomorrow", "tonight", "friday", "monday", "eod", "asap", "by ", "pm", "am", "urgent"]
+
+    has_work_term = any(w in text_lower for w in work_terms)
+    has_action_term = any(w in text_lower for w in action_terms)
+    has_time_term = any(t in text_lower for t in time_terms)
+
+    is_work_important = (has_work_term and has_action_term) or (has_work_term and has_time_term)
+    significant_updates = ["bank statement", "salary credited", "flight confirmation", "visa approved", "interview scheduled"]
+    has_sig_update = any(u in text_lower for u in significant_updates)
+    is_important_inquiry = has_work_term and ("?" in message_text or any(q in text_lower for q in ["what is the status", "did you", "when will", "could you please"]))
+
+    if has_meeting_link or is_work_important or has_sig_update or is_important_inquiry:
+        return {
+            "classification": "Important",
+            "priority": "P2 - IMPORTANT",
+            "urgency": "Medium",
+            "badge_color": "#f59e0b"
+        }
+
+    # 4. STANDARD (Normal conversations / greetings / routine chat)
+    return {
+        "classification": "Standard",
+        "priority": "STANDARD",
+        "urgency": "Low",
+        "badge_color": "#10b981"
+    }
+
 def analyze_message(message_text, persona="casual", thread_count=1):
     sentiment_pred, sentiment_conf = predict_with_confidence(sentiment_model, message_text)
     spam_pred, spam_conf = predict_with_confidence(spam_model, message_text)
     urgency_pred, urgency_conf = predict_with_confidence(urgency_model, message_text)
     tone_pred, tone_conf = predict_with_confidence(tone_model, message_text)
 
-    # ==========================================================
-    # Advanced Implicit & Contextual Urgency Engine
-    # ==========================================================
-    text_lower = message_text.lower()
+    # Apply contextual triage classification
+    triage = classify_message_context(message_text, spam_pred, spam_conf)
     
-    # 1. Explicit emergency / help keywords
-    explicit_urgent = ["urgent", "emergency", "asap", "immediately", "call me", "hurry", "help", "sos"]
+    priority = triage["priority"]
+    badge_color = triage["badge_color"]
+    urgency_level = triage["urgency"]
     
-    # 2. Time/Deadline pressure cues (vital for students and professionals)
-    time_cues = ["am", "pm", "today", "tomorrow", "tonight", "by ", "at ", "deadline", "due", "schedule"]
-    action_verbs = ["need", "reach", "come", "bring", "submit", "finish", "meet", "complete", "send"]
-    
-    has_question_or_demand = "?" in message_text or message_text.endswith("!")
-    is_explicit = any(w in text_lower for w in explicit_urgent)
-    is_time_sensitive = any(t in text_lower for t in time_cues) and any(v in text_lower for v in action_verbs)
-    is_student_or_work_demand = any(w in text_lower for w in ["assignment", "project", "class", "exam", "lecture", "meeting", "boss", "teacher", "prof"])
-
-    if message_text.isupper() and len(message_text.strip()) > 3:
+    if triage["classification"] == "Spam":
+        spam_pred = "Spam"
+        spam_conf = max(spam_conf, 95.0)
+        suggested_action = ("Quarantine & Filter", 95.0)
+    elif triage["classification"] == "Urgent":
         urgency_pred = "High"
-        urgency_conf = 98.2
-    elif is_explicit or is_student_or_work_demand:
-        urgency_pred = "High"
-        urgency_conf = 94.5
-    elif is_time_sensitive and has_question_or_demand:
+        urgency_conf = max(urgency_conf, 96.0)
+        suggested_action = ("Immediate Escalation", 96.0)
+    elif triage["classification"] == "Important":
         urgency_pred = "Medium"
-        urgency_conf = 91.0
-
-    # Priority & Badge Color Mapping
-    if spam_pred == "Spam":
-        priority = "LOW (SPAM)"
-        badge_color = "#94a3b8"
-    elif urgency_pred == "High":
-        priority = "P1 - URGENT"
-        badge_color = "#ef4444"  # Red badge for P1 Alerts
-    elif urgency_pred == "Medium":
-        priority = "P2 - ACTIONABLE"
-        badge_color = "#f59e0b"  # Amber badge for upcoming commitments / time-bound tasks
+        urgency_conf = max(urgency_conf, 92.0)
+        suggested_action = ("Review & Action", 92.0)
     else:
-        priority = "STANDARD"
-        badge_color = "#10b981"  # Green badge
+        urgency_pred = "Low"
+        urgency_conf = max(urgency_conf, 88.0)
+        suggested_action = ("Standard Feed", 88.0)
 
     directives = generate_personalized_directives(
         message_text, persona, sentiment_pred, spam_pred, urgency_pred, tone_pred, thread_count
@@ -215,9 +303,10 @@ def analyze_message(message_text, persona="casual", thread_count=1):
         "Message Type": ("Spam" if spam_pred == "Spam" else "Legitimate", spam_conf),
         "Urgency": (urgency_pred, urgency_conf),
         "Tone": (tone_pred, tone_conf),
-        "Suggested Action": ("Escalate / Respond" if urgency_pred == "High" else "Review", 94.0),
+        "Suggested Action": suggested_action,
         "Priority": priority,
         "Badge Color": badge_color,
+        "Classification": triage["classification"],
         "Relay Directives": directives,
         "Deadline Data": deadline_data
     }

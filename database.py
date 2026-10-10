@@ -206,8 +206,13 @@ def init_db():
         cursor.execute("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS source_message TEXT;")
         cursor.execute("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS sender TEXT;")
         cursor.execute("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;")
+        cursor.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS work_mode_enabled INTEGER DEFAULT 1;")
         conn.commit()
     else:
+        cursor.execute("PRAGMA table_info(user_settings)")
+        user_settings_cols = [col[1] for col in cursor.fetchall()]
+        if 'work_mode_enabled' not in user_settings_cols:
+            cursor.execute("ALTER TABLE user_settings ADD COLUMN work_mode_enabled INTEGER DEFAULT 1")
         cursor.execute("PRAGMA table_info(reminders)")
         reminder_cols = [col[1] for col in cursor.fetchall()]
         if 'description' not in reminder_cols:
@@ -321,11 +326,57 @@ def verify_user(identifier, password):
 
 def log_analysis(username, message, sentiment, urgency, priority):
     username = (username or 'admin').strip().lower()
-    query_db(
+    # Deduplicate recent logs to prevent duplicate alerts
+    existing = query_db("""
+        SELECT id FROM analysis_logs 
+        WHERE LOWER(username) = ? AND message = ?
+        ORDER BY id DESC LIMIT 1
+    """, (username, message), one=True)
+    if existing:
+        return existing['id']
+
+    row_id = query_db(
         "INSERT INTO analysis_logs (username, message, sentiment, urgency, priority) VALUES (?, ?, ?, ?, ?)",
         (username, message, sentiment, urgency, priority),
         commit=True
     )
+    return row_id
+
+def get_p1_alert_count(username):
+    uname = (username or 'admin').strip().lower()
+    row = query_db("""
+        SELECT COUNT(*) as count 
+        FROM analysis_logs 
+        WHERE LOWER(username) = ? 
+          AND (LOWER(priority) LIKE '%p1%' OR LOWER(priority) LIKE '%urgent%' OR LOWER(urgency) = 'high')
+    """, (uname,), one=True)
+    return row['count'] if row else 0
+
+def get_total_message_count(username):
+    uname = (username or 'admin').strip().lower()
+    row = query_db("""
+        SELECT COUNT(*) as count 
+        FROM analysis_logs 
+        WHERE LOWER(username) = ?
+    """, (uname,), one=True)
+    return row['count'] if row else 0
+
+def get_quarantined_messages(username):
+    uname = (username or 'admin').strip().lower()
+    rows = query_db("""
+        SELECT id, message, sentiment, urgency, priority, timestamp
+        FROM analysis_logs
+        WHERE LOWER(username) = ? AND (LOWER(priority) LIKE '%spam%' OR LOWER(priority) LIKE '%low%')
+        ORDER BY id DESC LIMIT 50
+    """, (uname,))
+    return [
+        {
+            'id': r['id'],
+            'message': r['message'],
+            'priority': r['priority'],
+            'timestamp': str(r.get('timestamp') or '')
+        } for r in rows
+    ]
 
 # --- Meeting Database Operations ---
 
