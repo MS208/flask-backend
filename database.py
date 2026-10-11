@@ -112,7 +112,10 @@ def init_db():
             work_end_time TEXT DEFAULT '17:00',
             allow_auto_reply INTEGER DEFAULT 0,
             dnd_bypass_enabled INTEGER DEFAULT 1,
-            default_persona TEXT DEFAULT 'casual'
+            default_persona TEXT DEFAULT 'casual',
+            custom_topics TEXT DEFAULT '',
+            handling_stage TEXT DEFAULT 'immediate',
+            spam_handling TEXT DEFAULT 'delete'
         );
     '''
     cursor.execute(query)
@@ -207,12 +210,21 @@ def init_db():
         cursor.execute("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS sender TEXT;")
         cursor.execute("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;")
         cursor.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS work_mode_enabled INTEGER DEFAULT 1;")
+        cursor.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS custom_topics TEXT DEFAULT '';")
+        cursor.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS handling_stage TEXT DEFAULT 'immediate';")
+        cursor.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS spam_handling TEXT DEFAULT 'delete';")
         conn.commit()
     else:
         cursor.execute("PRAGMA table_info(user_settings)")
         user_settings_cols = [col[1] for col in cursor.fetchall()]
         if 'work_mode_enabled' not in user_settings_cols:
             cursor.execute("ALTER TABLE user_settings ADD COLUMN work_mode_enabled INTEGER DEFAULT 1")
+        if 'custom_topics' not in user_settings_cols:
+            cursor.execute("ALTER TABLE user_settings ADD COLUMN custom_topics TEXT DEFAULT ''")
+        if 'handling_stage' not in user_settings_cols:
+            cursor.execute("ALTER TABLE user_settings ADD COLUMN handling_stage TEXT DEFAULT 'immediate'")
+        if 'spam_handling' not in user_settings_cols:
+            cursor.execute("ALTER TABLE user_settings ADD COLUMN spam_handling TEXT DEFAULT 'delete'")
         cursor.execute("PRAGMA table_info(reminders)")
         reminder_cols = [col[1] for col in cursor.fetchall()]
         if 'description' not in reminder_cols:
@@ -324,6 +336,55 @@ def verify_user(identifier, password):
     )
     return user
 
+def get_user_profile(username):
+    uname = (username or 'admin').strip().lower()
+    user = query_db("SELECT id, username, email, full_name FROM users WHERE LOWER(username) = ?", (uname,), one=True)
+    if not user:
+        return {
+            'username': uname,
+            'email': f"{uname}@gateway.com",
+            'full_name': uname.capitalize(),
+            'role': 'System Administrator'
+        }
+    return {
+        'id': user['id'],
+        'username': user['username'],
+        'email': user['email'],
+        'full_name': user['full_name'],
+        'role': 'System Administrator'
+    }
+
+def update_user_profile(username, full_name, email):
+    uname = (username or 'admin').strip().lower()
+    full_name = full_name.strip()
+    email = email.strip().lower()
+    if not full_name or not email:
+        return False, "Full name and email cannot be empty."
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        if is_postgres():
+            cursor.execute("""
+                UPDATE users SET full_name = %s, email = %s WHERE LOWER(username) = %s
+            """, (full_name, email, uname))
+        else:
+            cursor.execute("""
+                UPDATE users SET full_name = ?, email = ? WHERE LOWER(username) = ?
+            """, (full_name, email, uname))
+        conn.commit()
+        return True, "Profile updated successfully."
+    except Exception as e:
+        err_msg = str(e).lower()
+        if "unique constraint" in err_msg or "duplicate key" in err_msg:
+            return False, "Email address is already in use by another account."
+        return False, f"Failed to update profile: {str(e)}"
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
 def log_analysis(username, message, sentiment, urgency, priority):
     username = (username or 'admin').strip().lower()
     # Deduplicate recent logs to prevent duplicate alerts
@@ -411,7 +472,7 @@ def get_meeting_by_url(username, meeting_url):
     uname = (username or 'admin').strip().lower()
     url = meeting_url.strip()
     row = query_db(
-        "SELECT * FROM meetings WHERE LOWER(username) = ? AND meeting_url = ?",
+        "SELECT * FROM meetings WHERE LOWER(username) = ? AND LOWER(meeting_url) = LOWER(?) AND status != 'Cancelled'",
         (uname, url),
         one=True
     )
@@ -558,7 +619,7 @@ def get_task_by_title(username, task_title):
     uname = (username or 'admin').strip().lower()
     title = task_title.strip()
     row = query_db(
-        "SELECT * FROM reminders WHERE LOWER(username) = ? AND LOWER(task_title) = ? AND status = 'Pending'",
+        "SELECT * FROM reminders WHERE LOWER(username) = ? AND LOWER(task_title) = ? AND status != 'Completed'",
         (uname, title.lower()),
         one=True
     )
@@ -587,6 +648,20 @@ def add_task(username, task_title, deadline_text="No deadline specified", buffer
     # Deduplication check
     existing = get_task_by_title(uname, title)
     if existing:
+        if (due_date or due_time or description) and (not existing.get('due_date') and not existing.get('due_time')):
+            update_task(
+                task_id=existing['id'],
+                username=uname,
+                task_title=title,
+                deadline_text=deadline_text if deadline_text != 'No deadline specified' else existing.get('deadline_text', 'No deadline specified'),
+                buffer_lead=buffer_lead,
+                status=status or existing.get('status', 'Pending'),
+                due_date=due_date or existing.get('due_date', ''),
+                due_time=due_time or existing.get('due_time', ''),
+                description=description or existing.get('description', ''),
+                reminder_offset=reminder_offset,
+                reminder_timestamp=reminder_timestamp or existing.get('reminder_timestamp')
+            )
         existing_id = int(existing['id'])
         return (existing_id, False) if return_tuple else existing_id
 

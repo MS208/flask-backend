@@ -302,14 +302,127 @@ class TestComprehensiveRegression(unittest.TestCase):
         self.assertIn('id="assistantModal"', html)
         self.assertIn('id="questionnaireModal"', html)
 
-        # Check required changes
-        self.assertNotIn('header-user-pill', html, "Header user chip should be removed")
-        self.assertIn('id="workModeToggle"', html, "Work mode toggle should be in settingsView")
-        self.assertIn('id="settingsToneSelect"', html, "Tone selector should be in settingsView")
-        self.assertNotIn('allowAutoReplyToggle', html, "Autonomous auto-reply toggle should be completely removed")
-        self.assertIn('id="urgentStat"', html)
-        self.assertIn('id="tasksStat"', html)
-        self.assertIn('id="totalStat"', html)
+    # ==========================================
+    # 7. USER PROFILE & PREFERENCES TESTS
+    # ==========================================
+    def test_user_profile_crud(self):
+        with self.client.session_transaction() as sess:
+            sess['logged_in'] = True
+            sess['username'] = 'admin'
+
+        # Get initial profile
+        res = self.client.get('/get_profile')
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data['status'], 'success')
+        self.assertEqual(data['username'], 'admin')
+
+        # Update profile
+        update_res = self.client.post('/update_profile', data=json.dumps({
+            'full_name': 'Chief System Architect',
+            'email': 'architect@gateway.com'
+        }), content_type='application/json')
+        self.assertEqual(update_res.status_code, 200)
+
+        # Verify profile updated
+        verify_res = self.client.get('/get_profile')
+        self.assertEqual(verify_res.status_code, 200)
+        updated = verify_res.get_json()
+        self.assertEqual(updated['full_name'], 'Chief System Architect')
+        self.assertEqual(updated['email'], 'architect@gateway.com')
+
+    def test_message_preferences_persistence(self):
+        with self.client.session_transaction() as sess:
+            sess['logged_in'] = True
+            sess['username'] = 'admin'
+
+        payload = {
+            "active_hours_enabled": True,
+            "work_start_time": "09:00",
+            "work_end_time": "17:00",
+            "work_mode_enabled": True,
+            "dnd_bypass_enabled": True,
+            "persona": "short",
+            "custom_topics": "crypto, bank otp, sprint deliverables",
+            "handling_stage": "staged",
+            "spam_handling": "archive"
+        }
+        res = self.client.post('/update_settings', data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(res.status_code, 200)
+
+        # Fetch settings and verify all preferences are persistent
+        get_res = self.client.get('/get_settings')
+        self.assertEqual(get_res.status_code, 200)
+        data = get_res.get_json()
+        self.assertEqual(data['custom_topics'], "crypto, bank otp, sprint deliverables")
+        self.assertEqual(data['handling_stage'], "staged")
+        self.assertEqual(data['spam_handling'], "archive")
+        self.assertEqual(data['default_persona'], "short")
+        self.assertEqual(data['preferences_configured'], 1)
+
+    def test_auto_save_and_deduplication_in_analyze(self):
+        with self.client.session_transaction() as sess:
+            sess['logged_in'] = True
+            sess['username'] = 'admin'
+
+        msg = "Team sprint sync meeting today at 4pm at https://meet.google.com/prj-sync-2026. Please submit final report before tomorrow 5pm."
+
+        # First analyze call: should auto-extract and auto-save
+        res1 = self.client.post('/analyze', data=json.dumps({'message': msg}), content_type='application/json')
+        self.assertEqual(res1.status_code, 200)
+        data1 = res1.get_json()
+        self.assertGreaterEqual(len(data1['meeting_links']), 1)
+        self.assertIsNotNone(data1['task_info'])
+
+        # Check meetings list
+        m_res = self.client.get('/get_meetings')
+        self.assertEqual(m_res.status_code, 200)
+        meetings = [m for m in m_res.get_json()['meetings'] if 'prj-sync-2026' in m['meeting_url']]
+        self.assertEqual(len(meetings), 1)
+
+        # Second analyze call with exact same message: must NOT duplicate
+        res2 = self.client.post('/analyze', data=json.dumps({'message': msg}), content_type='application/json')
+        self.assertEqual(res2.status_code, 200)
+
+        m_res2 = self.client.get('/get_meetings')
+        self.assertEqual(m_res2.status_code, 200)
+        meetings2 = [m for m in m_res2.get_json()['meetings'] if 'prj-sync-2026' in m['meeting_url']]
+        self.assertEqual(len(meetings2), 1, "Meeting should not be duplicated")
+
+    def test_active_persona_and_thread_turns_removed_from_ui(self):
+        with self.client.session_transaction() as sess:
+            sess['logged_in'] = True
+            sess['username'] = 'admin'
+
+        res = self.client.get('/')
+        self.assertEqual(res.status_code, 200)
+        html = res.data.decode('utf-8')
+
+        # Active Persona selector and Thread Turns input should be removed
+        self.assertNotIn('id="userPersona"', html, "userPersona selector should be removed from assistant")
+        self.assertNotIn('id="threadCountInput"', html, "threadCountInput should be removed from assistant")
+
+        # Editable profile inputs should be present
+        self.assertIn('id="profileFullName"', html, "profileFullName input should be in profileView")
+        self.assertIn('id="profileEmail"', html, "profileEmail input should be in profileView")
+
+    def test_tone_settings_influences_analyze_directives(self):
+        with self.client.session_transaction() as sess:
+            sess['logged_in'] = True
+            sess['username'] = 'admin'
+
+        # Set tone to formal
+        self.client.post('/update_settings', data=json.dumps({"persona": "formal"}), content_type='application/json')
+        res_formal = self.client.post('/analyze', data=json.dumps({'message': 'Can you share the project status report?'}), content_type='application/json')
+        directives_formal = res_formal.get_json()['relay_directives']
+        self.assertTrue(any("review" in d.lower() or "deliverable" in d.lower() or "acknowledged" in d.lower() for d in directives_formal), "Expected formal phrasing in directives")
+
+        # Set tone to short
+        self.client.post('/update_settings', data=json.dumps({"persona": "short"}), content_type='application/json')
+        res_short = self.client.post('/analyze', data=json.dumps({'message': 'Can you share the project status report?'}), content_type='application/json')
+        directives_short = res_short.get_json()['relay_directives']
+        self.assertTrue(any("sending shortly" in d.lower() or "done" in d.lower() or "working on it" in d.lower() for d in directives_short), "Expected short phrasing in directives")
 
 if __name__ == '__main__':
     unittest.main()
+

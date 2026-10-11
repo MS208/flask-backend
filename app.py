@@ -21,6 +21,8 @@ from database import (
     get_quarantined_messages,
     register_user,
     verify_user,
+    get_user_profile,
+    update_user_profile,
     get_meetings_for_user,
     add_meeting,
     update_meeting,
@@ -72,11 +74,15 @@ def resolve_username_or_default(explicit_user=None):
 def home():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
+    username = session.get('username', 'admin')
+    prof = get_user_profile(username)
+    full_name = prof.get('full_name') or session.get('full_name', username)
+    email = prof.get('email') or session.get('email', f"{username}@gateway.com")
     return render_template(
         'index.html',
-        username=session.get('username', 'Admin'),
-        full_name=session.get('full_name', ''),
-        email=session.get('email', '')
+        username=prof.get('username') or username,
+        full_name=full_name,
+        email=email
     )
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -119,16 +125,37 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
+@app.route('/get_profile', methods=['GET'])
+def get_profile():
+    username = resolve_username_or_default(request.args.get('username') or session.get('username'))
+    if not username:
+        return jsonify({'error': 'Unauthorized'}), 401
+    profile = get_user_profile(username)
+    return jsonify({'status': 'success', **profile})
+
+@app.route('/update_profile', methods=['POST'])
+def update_profile():
+    username = resolve_username_or_default(session.get('username'))
+    if not username:
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.json or {}
+    full_name = data.get('full_name', '').strip()
+    email = data.get('email', '').strip()
+
+    ok, msg = update_user_profile(username, full_name, email)
+    if not ok:
+        return jsonify({'status': 'error', 'message': msg}), 400
+
+    session['full_name'] = full_name
+    session['email'] = email
+    return jsonify({'status': 'success', 'message': msg, 'full_name': full_name, 'email': email})
+
 @app.route('/get_settings', methods=['GET'])
 def get_settings():
     username = resolve_username_or_default(request.args.get('username') or session.get('username'))
     if not username:
         return jsonify({'error': 'Unauthorized'}), 401
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM user_settings WHERE LOWER(username) = LOWER(?)", (username,))
-    row = cursor.fetchone()
-    conn.close()
+    row = query_db("SELECT * FROM user_settings WHERE LOWER(username) = LOWER(?)", (username,), one=True)
 
     if not row:
         return jsonify({
@@ -138,12 +165,18 @@ def get_settings():
             'work_mode_enabled': 1,
             'dnd_bypass_enabled': 1,
             'default_persona': 'casual',
+            'custom_topics': '',
+            'handling_stage': 'immediate',
+            'spam_handling': 'delete',
             'preferences_configured': 0
         })
-    
-    # Safe key access for row
+
     row_keys = row.keys() if hasattr(row, 'keys') else []
     work_mode = row['work_mode_enabled'] if 'work_mode_enabled' in row_keys else 1
+    custom_topics = row.get('custom_topics') or ''
+    handling_stage = row.get('handling_stage') or 'immediate'
+    spam_handling = row.get('spam_handling') or 'delete'
+    configured = 1 if (custom_topics or row.get('custom_topics') is not None) else 0
 
     return jsonify({
         'active_hours_enabled': row['active_hours_enabled'] if 'active_hours_enabled' in row_keys else 1,
@@ -152,7 +185,10 @@ def get_settings():
         'work_mode_enabled': work_mode,
         'dnd_bypass_enabled': row['dnd_bypass_enabled'] if 'dnd_bypass_enabled' in row_keys else 1,
         'default_persona': row['default_persona'] or 'casual',
-        'preferences_configured': 1
+        'custom_topics': custom_topics,
+        'handling_stage': handling_stage,
+        'spam_handling': spam_handling,
+        'preferences_configured': configured
     })
 
 @app.route('/update_settings', methods=['POST'])
@@ -161,29 +197,35 @@ def update_settings():
     if not username:
         return jsonify({'error': 'Unauthorized'}), 401
     data = request.json or {}
-    
-    active_enabled = 1 if data.get('active_hours_enabled', True) else 0
-    work_start = data.get('work_start_time', '09:00')
-    work_end = data.get('work_end_time', '17:00')
-    work_mode = 1 if data.get('work_mode_enabled', True) else 0
-    dnd_bypass = 1 if data.get('dnd_bypass_enabled', True) else 0
-    persona = data.get('persona', 'casual')
 
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO user_settings (username, active_hours_enabled, work_start_time, work_end_time, work_mode_enabled, dnd_bypass_enabled, default_persona)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+    existing = query_db("SELECT * FROM user_settings WHERE LOWER(username) = LOWER(?)", (username,), one=True)
+    ex_keys = existing.keys() if (existing and hasattr(existing, 'keys')) else []
+
+    active_enabled = 1 if data.get('active_hours_enabled', existing['active_hours_enabled'] if (existing and 'active_hours_enabled' in ex_keys) else True) else 0
+    work_start = data.get('work_start_time', existing['work_start_time'] if (existing and 'work_start_time' in ex_keys) else '09:00')
+    work_end = data.get('work_end_time', existing['work_end_time'] if (existing and 'work_end_time' in ex_keys) else '17:00')
+    work_mode = 1 if data.get('work_mode_enabled', existing['work_mode_enabled'] if (existing and 'work_mode_enabled' in ex_keys) else True) else 0
+    dnd_bypass = 1 if data.get('dnd_bypass_enabled', existing['dnd_bypass_enabled'] if (existing and 'dnd_bypass_enabled' in ex_keys) else True) else 0
+    persona = data.get('persona', existing['default_persona'] if (existing and 'default_persona' in ex_keys) else 'casual')
+
+    custom_topics = data.get('custom_topics', existing['custom_topics'] if (existing and 'custom_topics' in ex_keys and existing['custom_topics'] is not None) else '')
+    handling_stage = data.get('handling_stage', existing['handling_stage'] if (existing and 'handling_stage' in ex_keys and existing['handling_stage'] is not None) else 'immediate')
+    spam_handling = data.get('spam_handling', existing['spam_handling'] if (existing and 'spam_handling' in ex_keys and existing['spam_handling'] is not None) else 'delete')
+
+    query_db('''
+        INSERT INTO user_settings (username, active_hours_enabled, work_start_time, work_end_time, work_mode_enabled, dnd_bypass_enabled, default_persona, custom_topics, handling_stage, spam_handling)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(username) DO UPDATE SET
             active_hours_enabled = excluded.active_hours_enabled,
             work_start_time = excluded.work_start_time,
             work_end_time = excluded.work_end_time,
             work_mode_enabled = excluded.work_mode_enabled,
             dnd_bypass_enabled = excluded.dnd_bypass_enabled,
-            default_persona = excluded.default_persona
-    ''', (username, active_enabled, work_start, work_end, work_mode, dnd_bypass, persona))
-    conn.commit()
-    conn.close()
+            default_persona = excluded.default_persona,
+            custom_topics = excluded.custom_topics,
+            handling_stage = excluded.handling_stage,
+            spam_handling = excluded.spam_handling
+    ''', (username, active_enabled, work_start, work_end, work_mode, dnd_bypass, persona, custom_topics, handling_stage, spam_handling), commit=True)
 
     return jsonify({'status': 'success'})
 
@@ -867,7 +909,10 @@ def analyze():
     username = resolve_username_or_default(session.get('username'))
     data = request.json or {}
     message = data.get('message', '').strip()
-    persona = data.get('persona', 'casual')
+    persona = data.get('persona')
+    if not persona:
+        setting_row = query_db("SELECT default_persona FROM user_settings WHERE LOWER(username) = LOWER(?)", (username,), one=True)
+        persona = setting_row['default_persona'] if (setting_row and setting_row.get('default_persona')) else 'casual'
     thread_count = int(data.get('thread_count', 1))
 
     if not message:
