@@ -1838,7 +1838,12 @@
             explanationDiv.style.borderColor = borderTint;
             explanationDiv.style.background = bgTint;
             explanationDiv.style.color = '#1e293b';
-            explanationDiv.innerHTML = `<strong>${escapeHtml(riskLevel)}:</strong> ${escapeHtml(res.explanation || 'No further details.')}`;
+            let detail = (res.explanation || 'No further details.').trim();
+            const prefix = riskLevel + ':';
+            if (detail.toLowerCase().startsWith(prefix.toLowerCase())) {
+                detail = detail.substring(prefix.length).trim();
+            }
+            explanationDiv.innerHTML = `<strong>${escapeHtml(riskLevel)}:</strong> ${escapeHtml(detail)}`;
         }
     }
 
