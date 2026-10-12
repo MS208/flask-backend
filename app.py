@@ -392,15 +392,33 @@ def update_task_status_route():
     except Exception as e:
         return jsonify({'error': f'Failed to update task status: {str(e)}'}), 500
 
-@app.route('/delete_task', methods=['POST'])
-@app.route('/api/delete_task', methods=['POST'])
+@app.route('/delete_task', methods=['POST', 'DELETE'])
+@app.route('/api/delete_task', methods=['POST', 'DELETE'])
 def delete_task_route():
-    data = request.json or {}
-    username = resolve_username_or_default(data.get('username') or session.get('username'))
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+    else:
+        data = request.form.to_dict() if request.form else {}
+    if not data and request.args:
+        data = request.args.to_dict()
 
-    task_id = data.get('task_id') or data.get('id')
-    if not task_id:
-        return jsonify({'error': 'Task ID is required.'}), 400
+    raw_id = (
+        data.get('task_id') or
+        data.get('taskId') or
+        data.get('id') or
+        request.args.get('task_id') or
+        request.args.get('taskId') or
+        request.args.get('id')
+    )
+    if raw_id is None or str(raw_id).strip() == '':
+        return jsonify({'error': 'Valid Task ID is required.'}), 400
+
+    try:
+        task_id = int(raw_id)
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Valid integer Task ID is required.'}), 400
+
+    username = resolve_username_or_default(data.get('username') or request.args.get('username') or session.get('username'))
 
     try:
         deleted = delete_task(task_id=task_id, username=username)
@@ -410,7 +428,8 @@ def delete_task_route():
         return jsonify({
             'status': 'success',
             'message': 'Task deleted successfully',
-            'task_id': task_id
+            'task_id': task_id,
+            'id': task_id
         })
     except Exception as e:
         return jsonify({'error': f'Failed to delete task: {str(e)}'}), 500
@@ -581,15 +600,33 @@ def update_meeting_status_route():
     except Exception as e:
         return jsonify({'error': f'Failed to update meeting status: {str(e)}'}), 500
 
-@app.route('/delete_meeting', methods=['POST'])
-@app.route('/api/delete_meeting', methods=['POST'])
+@app.route('/delete_meeting', methods=['POST', 'DELETE'])
+@app.route('/api/delete_meeting', methods=['POST', 'DELETE'])
 def delete_meeting_route():
-    data = request.json or {}
-    username = resolve_username_or_default(data.get('username') or session.get('username'))
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+    else:
+        data = request.form.to_dict() if request.form else {}
+    if not data and request.args:
+        data = request.args.to_dict()
 
-    meeting_id = data.get('id') or data.get('meeting_id')
-    if not meeting_id:
-        return jsonify({'error': 'Meeting ID is required.'}), 400
+    raw_id = (
+        data.get('meeting_id') or
+        data.get('meetingId') or
+        data.get('id') or
+        request.args.get('meeting_id') or
+        request.args.get('meetingId') or
+        request.args.get('id')
+    )
+    if raw_id is None or str(raw_id).strip() == '':
+        return jsonify({'error': 'Valid Meeting ID is required.'}), 400
+
+    try:
+        meeting_id = int(raw_id)
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Valid integer Meeting ID is required.'}), 400
+
+    username = resolve_username_or_default(data.get('username') or request.args.get('username') or session.get('username'))
 
     try:
         deleted = delete_meeting(meeting_id=meeting_id, username=username)
@@ -599,7 +636,8 @@ def delete_meeting_route():
         return jsonify({
             'status': 'success',
             'message': 'Meeting link deleted successfully',
-            'meeting_id': meeting_id
+            'meeting_id': meeting_id,
+            'id': meeting_id
         })
     except Exception as e:
         return jsonify({'error': f'Failed to delete meeting: {str(e)}'}), 500

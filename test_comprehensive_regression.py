@@ -453,6 +453,90 @@ class TestComprehensiveRegression(unittest.TestCase):
         directives_short = res_short.get_json()['relay_directives']
         self.assertTrue(any("sending shortly" in d.lower() or "done" in d.lower() or "working on it" in d.lower() for d in directives_short), "Expected short phrasing in directives")
 
+    # ==========================================
+    # 7. MEETING AND TASK DELETION TESTS
+    # ==========================================
+    def test_delete_meeting_functionality(self):
+        with self.client.session_transaction() as sess:
+            sess['logged_in'] = True
+            sess['username'] = 'admin'
+
+        # 1. Create two test meetings
+        m1_id = add_meeting("admin", "Google Meet", "https://meet.google.com/del-test-1", "Tomorrow 10am", "Del Test 1")
+        m2_id = add_meeting("admin", "Google Meet", "https://meet.google.com/del-test-2", "Tomorrow 11am", "Del Test 2")
+        self.assertIsNotNone(m1_id)
+        self.assertIsNotNone(m2_id)
+
+        # 2. Delete m1 via POST /delete_meeting with json {"id": m1_id}
+        res1 = self.client.post('/delete_meeting', data=json.dumps({'id': m1_id}), content_type='application/json')
+        self.assertEqual(res1.status_code, 200)
+        self.assertEqual(res1.get_json()['status'], 'success')
+
+        # Verify m1 is deleted and m2 is still present
+        meetings_after = get_meetings_for_user('admin')
+        meeting_ids = [m['id'] for m in meetings_after]
+        self.assertNotIn(m1_id, meeting_ids, "Meeting 1 should be deleted")
+        self.assertIn(m2_id, meeting_ids, "Meeting 2 should still exist")
+
+        # 3. Delete m2 via DELETE /api/delete_meeting with query params ?meeting_id=...
+        res2 = self.client.delete(f'/api/delete_meeting?meeting_id={m2_id}')
+        self.assertEqual(res2.status_code, 200)
+        self.assertEqual(res2.get_json()['status'], 'success')
+
+        # Verify m2 is also deleted
+        meetings_after2 = get_meetings_for_user('admin')
+        meeting_ids2 = [m['id'] for m in meetings_after2]
+        self.assertNotIn(m2_id, meeting_ids2, "Meeting 2 should be deleted")
+
+        # 4. Deleting non-existent meeting returns 404
+        res_nonexistent = self.client.post('/delete_meeting', data=json.dumps({'id': 99999999}), content_type='application/json')
+        self.assertEqual(res_nonexistent.status_code, 404)
+
+        # 5. Missing or invalid ID returns 400
+        res_bad = self.client.post('/delete_meeting', data=json.dumps({'id': 'invalid'}), content_type='application/json')
+        self.assertEqual(res_bad.status_code, 400)
+
+    def test_delete_task_functionality(self):
+        with self.client.session_transaction() as sess:
+            sess['logged_in'] = True
+            sess['username'] = 'admin'
+
+        # 1. Create two test tasks
+        t1_id = add_task("admin", "Del Task 1", "Tomorrow 2pm")
+        t2_id = add_task("admin", "Del Task 2", "Tomorrow 3pm")
+        self.assertIsNotNone(t1_id)
+        self.assertIsNotNone(t2_id)
+
+        # 2. Delete t1 via POST /delete_task with json {"task_id": t1_id}
+        res1 = self.client.post('/delete_task', data=json.dumps({'task_id': t1_id}), content_type='application/json')
+        self.assertEqual(res1.status_code, 200)
+        self.assertEqual(res1.get_json()['status'], 'success')
+
+        # Verify t1 is deleted and t2 is still present
+        tasks_after = get_tasks_for_user('admin')
+        task_ids = [t['id'] for t in tasks_after]
+        self.assertNotIn(t1_id, task_ids, "Task 1 should be deleted")
+        self.assertIn(t2_id, task_ids, "Task 2 should still exist")
+
+        # 3. Delete t2 via DELETE /api/delete_task with form data taskId=...
+        res2 = self.client.delete('/api/delete_task', data={'taskId': str(t2_id)})
+        self.assertEqual(res2.status_code, 200)
+        self.assertEqual(res2.get_json()['status'], 'success')
+
+        # Verify t2 is also deleted
+        tasks_after2 = get_tasks_for_user('admin')
+        task_ids2 = [t['id'] for t in tasks_after2]
+        self.assertNotIn(t2_id, task_ids2, "Task 2 should be deleted")
+
+        # 4. Deleting non-existent task returns 404
+        res_nonexistent = self.client.post('/delete_task', data=json.dumps({'task_id': 99999999}), content_type='application/json')
+        self.assertEqual(res_nonexistent.status_code, 404)
+
+        # 5. Missing or invalid ID returns 400
+        res_bad = self.client.post('/delete_task', data=json.dumps({}), content_type='application/json')
+        self.assertEqual(res_bad.status_code, 400)
+
 if __name__ == '__main__':
     unittest.main()
+
 

@@ -612,15 +612,41 @@ def update_meeting_status(meeting_id, username, status):
         except Exception:
             pass
 
-def delete_meeting(meeting_id, username):
-    uname = (username or 'admin').strip().lower()
+def delete_meeting(meeting_id, username=None):
+    try:
+        m_id = int(meeting_id)
+    except (ValueError, TypeError):
+        return False
+
+    uname = (username or '').strip().lower() if username else None
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         if is_postgres():
-            cursor.execute("DELETE FROM meetings WHERE id = %s AND LOWER(username) = %s", (meeting_id, uname))
+            cursor.execute("SELECT id, username FROM meetings WHERE id = %s", (m_id,))
         else:
-            cursor.execute("DELETE FROM meetings WHERE id = ? AND LOWER(username) = ?", (meeting_id, uname))
+            cursor.execute("SELECT id, username FROM meetings WHERE id = ?", (m_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+
+        row_user = (row[1] if isinstance(row, tuple) else row['username']) or ''
+        row_user = row_user.strip().lower()
+
+        authorized = (
+            not uname or
+            uname == 'admin' or
+            row_user == uname or
+            not row_user or
+            row_user == 'admin'
+        )
+        if not authorized:
+            return False
+
+        if is_postgres():
+            cursor.execute("DELETE FROM meetings WHERE id = %s", (m_id,))
+        else:
+            cursor.execute("DELETE FROM meetings WHERE id = ?", (m_id,))
         conn.commit()
         return cursor.rowcount > 0
     finally:
@@ -786,15 +812,41 @@ def update_task_status(task_id, username, status):
         except Exception:
             pass
 
-def delete_task(task_id, username):
-    uname = (username or 'admin').strip().lower()
+def delete_task(task_id, username=None):
+    try:
+        t_id = int(task_id)
+    except (ValueError, TypeError):
+        return False
+
+    uname = (username or '').strip().lower() if username else None
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         if is_postgres():
-            cursor.execute("DELETE FROM reminders WHERE id = %s AND LOWER(username) = %s", (task_id, uname))
+            cursor.execute("SELECT id, username FROM reminders WHERE id = %s", (t_id,))
         else:
-            cursor.execute("DELETE FROM reminders WHERE id = ? AND LOWER(username) = ?", (task_id, uname))
+            cursor.execute("SELECT id, username FROM reminders WHERE id = ?", (t_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+
+        row_user = (row[1] if isinstance(row, tuple) else row['username']) or ''
+        row_user = row_user.strip().lower()
+
+        authorized = (
+            not uname or
+            uname == 'admin' or
+            row_user == uname or
+            not row_user or
+            row_user == 'admin'
+        )
+        if not authorized:
+            return False
+
+        if is_postgres():
+            cursor.execute("DELETE FROM reminders WHERE id = %s", (t_id,))
+        else:
+            cursor.execute("DELETE FROM reminders WHERE id = ?", (t_id,))
         conn.commit()
         return cursor.rowcount > 0
     finally:
