@@ -1,5 +1,5 @@
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from predict import analyze_message
 from temporal_engine import (
@@ -26,6 +26,7 @@ from database import (
     get_meetings_for_user,
     add_meeting,
     update_meeting,
+    update_meeting_status,
     delete_meeting,
     get_tasks_for_user,
     add_task,
@@ -38,6 +39,7 @@ from database import (
 
 app = Flask(__name__)
 app.secret_key = 'smart_messaging_gateway_secure_2026'
+app.permanent_session_lifetime = timedelta(days=30)
 
 init_db()
 
@@ -87,12 +89,15 @@ def home():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if request.method == 'GET' and session.get('logged_in') and session.get('username'):
+        return redirect(url_for('home'))
     error = None
     if request.method == 'POST':
         identifier = request.form.get('identifier', '').strip()
         password = request.form.get('password', '').strip()
         user = verify_user(identifier, password)
         if user:
+            session.permanent = True
             session['logged_in'] = True
             session['username'] = user['username']
             session['full_name'] = user['full_name']
@@ -362,6 +367,8 @@ def update_task_route():
 
 @app.route('/update_task_status', methods=['POST'])
 @app.route('/api/update_task_status', methods=['POST'])
+@app.route('/complete_task', methods=['POST'])
+@app.route('/api/complete_task', methods=['POST'])
 def update_task_status_route():
     data = request.json or {}
     task_id = data.get('task_id') or data.get('id')
@@ -386,6 +393,7 @@ def update_task_status_route():
         return jsonify({'error': f'Failed to update task status: {str(e)}'}), 500
 
 @app.route('/delete_task', methods=['POST'])
+@app.route('/api/delete_task', methods=['POST'])
 def delete_task_route():
     data = request.json or {}
     username = resolve_username_or_default(data.get('username') or session.get('username'))
@@ -546,7 +554,35 @@ def update_meeting_route():
     except Exception as e:
         return jsonify({'error': f'Failed to update meeting link: {str(e)}'}), 500
 
+@app.route('/update_meeting_status', methods=['POST'])
+@app.route('/api/update_meeting_status', methods=['POST'])
+@app.route('/complete_meeting', methods=['POST'])
+@app.route('/api/complete_meeting', methods=['POST'])
+def update_meeting_status_route():
+    data = request.json or {}
+    meeting_id = data.get('meeting_id') or data.get('id')
+    new_status = data.get('status', 'Completed').strip() or 'Completed'
+    username = resolve_username_or_default(data.get('username') or session.get('username'))
+
+    if not meeting_id:
+        return jsonify({'error': 'Meeting ID missing.'}), 400
+
+    try:
+        updated = update_meeting_status(meeting_id=meeting_id, username=username, status=new_status)
+        if not updated:
+            return jsonify({'error': 'Meeting not found or unauthorized.'}), 404
+
+        return jsonify({
+            'status': 'success',
+            'message': f'Meeting status updated to {new_status}',
+            'updated_status': new_status,
+            'meeting_id': meeting_id
+        })
+    except Exception as e:
+        return jsonify({'error': f'Failed to update meeting status: {str(e)}'}), 500
+
 @app.route('/delete_meeting', methods=['POST'])
+@app.route('/api/delete_meeting', methods=['POST'])
 def delete_meeting_route():
     data = request.json or {}
     username = resolve_username_or_default(data.get('username') or session.get('username'))

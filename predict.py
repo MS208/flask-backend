@@ -189,50 +189,105 @@ def classify_message_context(message_text, spam_model_pred="Legitimate", spam_co
             "badge_color": "#94a3b8"
         }
 
-    # 2. URGENT DETECTION (Genuine emergencies / Life safety / Critical P1)
-    medical_emergency = [
-        "heart attack", "cardiac arrest", "ambulance", "emergency room", "accident on", "car crash",
-        "bleeding heavily", "unconscious", "cannot breathe", "choking", "icu", "severe injury",
-        "call 911", "call 112", "call 100", "hospital emergency"
-    ]
-    physical_danger = [
-        "building on fire", "fire in the", "gas leak", "robbery in progress", "someone breaking in",
-        "break-in", "hostage", "in immediate danger", "trapped inside", "send police now"
-    ]
-    critical_incident = [
-        "production is down", "prod is down", "production database down", "system outage",
-        "catastrophic outage", "server down", "sev-0", "sev-1", "p0 outage", "database corrupted",
-        "security breach", "ransomware attack", "active cyberattack", "unauthorized wire transfer"
-    ]
+    # 2. URGENT DETECTION (Genuine emergencies / Life safety / Infrastructure Critical P1)
+    # Check trivial/negation phrases first
+    is_negated_or_trivial = any(neg in text_lower for neg in [
+        "not urgent", "not an emergency", "no emergency", "no rush",
+        "chocolate emergency", "coffee emergency", "meme emergency", "pizza emergency", "outfit emergency", "boredom"
+    ])
 
-    is_genuine_urgent = False
-    for phrase in (medical_emergency + physical_danger + critical_incident):
-        if phrase in text_lower:
-            is_genuine_urgent = True
-            break
+    if not is_negated_or_trivial:
+        # Medical & Life Safety
+        medical_emergency = [
+            "heart attack", "cardiac arrest", "ambulance", "emergency room", "accident on", "car crash",
+            "bleeding heavily", "unconscious", "cannot breathe", "can't breathe", "cant breathe",
+            "trouble breathing", "choking", "icu", "severe injury", "stroke", "someone is hurt",
+            "i am hurt", "im hurt", "he is hurt", "she is hurt", "badly hurt", "injured",
+            "call 911", "call 112", "call 100", "call 999", "hospital emergency", "hospital"
+        ]
+        # Physical Danger & Immediate Threat
+        physical_danger = [
+            "building on fire", "fire in the", "gas leak", "robbery in progress", "someone breaking in",
+            "break-in", "hostage", "in immediate danger", "i'm in danger", "im in danger", "in danger",
+            "trapped inside", "send police now", "life threatening", "life-threatening"
+        ]
+        # Critical Infrastructure & Enterprise Outages
+        critical_incident = [
+            "production is down", "prod is down", "production database down", "system outage",
+            "catastrophic outage", "server down", "sev-0", "sev-1", "p0 outage", "database corrupted",
+            "db corrupted", "security breach", "ransomware attack", "active cyberattack", "unauthorized wire transfer"
+        ]
+        # Direct Urgent & Help Expressions (including abbreviations, variations, and casual texting)
+        direct_urgent_phrases = [
+            "it's an emergency", "its an emergency", "this is an emergency", "emergency call",
+            "help me immediately", "help me now", "need help urgently", "need help immediately",
+            "help urgently", "send help", "help asap", "pls help", "plz help",
+            "call me now", "call now", "call me immediately", "call immediately", "call me asap",
+            "call asap", "call rn", "call me rn", "urgent call",
+            "please respond asap", "respond asap", "asap please respond", "reply asap",
+            "pls respond asap", "plz respond asap", "respond immediately", "reply immediately"
+        ]
 
-    if not is_genuine_urgent and ("emergency" in words or "sos" in words):
-        trivial_emergency = ["chocolate", "coffee", "boredom", "meme", "outfit", "joke"]
-        if not any(t in text_lower for t in trivial_emergency):
-            is_genuine_urgent = True
+        is_genuine_urgent = False
+        for phrase in (medical_emergency + physical_danger + critical_incident + direct_urgent_phrases):
+            if phrase in text_lower:
+                is_genuine_urgent = True
+                break
 
-    if is_genuine_urgent:
-        return {
-            "classification": "Urgent",
-            "priority": "P1 - URGENT",
-            "urgency": "High",
-            "badge_color": "#ef4444"
-        }
+        # Check general "help me" with context filter
+        if not is_genuine_urgent and "help me" in text_lower:
+            casual_help_cues = ["help me with", "help me choose", "help me pick", "help me decide", "help me find"]
+            if not any(c in text_lower for c in casual_help_cues):
+                is_genuine_urgent = True
 
-    # 3. IMPORTANT DETECTION (Significant work / deliverables / meetings / tasks)
+        # Standalone or explicit keyword checks (excluding trivial grocery/casual errands)
+        if not is_genuine_urgent:
+            trivial_errands = ["buy milk", "groceries", "supermarket", "which shirt", "which outfit", "choose which"]
+            if not any(err in text_lower for err in trivial_errands):
+                urgent_standalone_words = {"emergency", "emergencies", "urgent", "urgently", "urgnt", "urgntly", "sos"}
+                if any(w in words for w in urgent_standalone_words):
+                    is_genuine_urgent = True
+                elif re.search(r'\b(s\.o\.s\.?|sos!+)\b', text_lower):
+                    is_genuine_urgent = True
+
+        if is_genuine_urgent:
+            return {
+                "classification": "Urgent",
+                "priority": "P1 - URGENT",
+                "urgency": "High",
+                "badge_color": "#ef4444"
+            }
+
+    # 3. IMPORTANT DETECTION (Significant work / deliverables / meetings / tasks / discussions)
+    # P1 takes absolute priority over P2
     has_meeting_link = has_meeting or (
-        any(w in words for w in ["meeting", "sync", "webinar", "interview"]) and 
-        any(w in words for w in ["tomorrow", "today", "pm", "am", "join", "link", "scheduled"])
+        any(w in words for w in ["meeting", "sync", "webinar", "interview", "standup", "conference", "catchup"]) and 
+        any(w in words for w in ["tomorrow", "today", "pm", "am", "join", "link", "scheduled", "at", "call"])
     )
-    
+
+    # Broad conversational & task prompts
+    conversational_important_phrases = [
+        "need to talk", "we need to talk", "need to speak", "need to discuss", "need to chat",
+        "u need to see that", "u need to see", "you need to see", "need you to see",
+        "u need to check", "you need to check", "need you to check",
+        "take a look at this", "take a look", "check this out", "look at this",
+        "don't forget", "dont forget", "do not forget", "remember to",
+        "deadline tomorrow", "deadline today", "due tomorrow", "due today", "due by",
+        "due date", "by eod", "by cop", "submit by", "finish by",
+        "action required", "action needed", "important update", "important note",
+        "important notice", "attention required", "priority notice",
+        "remind me", "gentle reminder", "quick reminder"
+    ]
+    has_conv_important = any(phrase in text_lower for phrase in conversational_important_phrases)
+
+    # Casual texting expressions with action context: pls/plz + action, ur + deliverable
+    has_pls_action = bool(re.search(r'\b(pls|plz|please)\b.*\b(check|review|send|submit|confirm|call|update|sign|approve|finish)\b', text_lower))
+    has_ur_deliverable = bool(re.search(r'\b(ur|your)\b.*\b(report|assignment|project|pr|task|presentation|invoice|code|file|doc|deadline|deck)\b', text_lower))
+    has_u_need = bool(re.search(r'\b(u|you)\s+need\s+to\b', text_lower))
+
     work_terms = ["report", "project", "assignment", "presentation", "deck", "slides", "deliverable",
                   "code", "pr", "pull request", "invoice", "contract", "client", "proposal", "audit",
-                  "exam", "syllabus", "homework", "task", "deployment", "release", "build"]
+                  "exam", "syllabus", "homework", "task", "deployment", "release", "build", "sprint"]
     action_terms = ["submit", "review", "due", "deadline", "send", "finish", "complete", "sign",
                     "approve", "approved", "finalize", "feedback", "status", "update"]
     time_terms = ["today", "tomorrow", "tonight", "friday", "monday", "eod", "asap", "by ", "pm", "am", "urgent"]
@@ -246,7 +301,8 @@ def classify_message_context(message_text, spam_model_pred="Legitimate", spam_co
     has_sig_update = any(u in text_lower for u in significant_updates)
     is_important_inquiry = has_work_term and ("?" in message_text or any(q in text_lower for q in ["what is the status", "did you", "when will", "could you please"]))
 
-    if has_meeting_link or is_work_important or has_sig_update or is_important_inquiry:
+    if (has_meeting_link or has_conv_important or has_pls_action or has_ur_deliverable or 
+        has_u_need or is_work_important or has_sig_update or is_important_inquiry):
         return {
             "classification": "Important",
             "priority": "P2 - IMPORTANT",

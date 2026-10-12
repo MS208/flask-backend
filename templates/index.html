@@ -338,7 +338,7 @@
     </div>
 
     <div>
-        <a href="/logout" style="color: #ef4444; text-decoration: none; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; padding: 10px;">
+        <a href="/logout" onclick="handleSignOut(event)" style="color: #ef4444; text-decoration: none; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; padding: 10px;">
             <span>🚪</span> Sign Out
         </a>
     </div>
@@ -370,7 +370,7 @@
                     <div class="dropdown-item" onclick="startQuestionnaire(0); closeQuickMenu();">⭐ Message Preference</div>
                     <div class="dropdown-item" onclick="switchView('settingsView', document.querySelector('[data-view=\'settingsView\']')); closeQuickMenu();">⚙️ Tone and Boundaries</div>
                     <div style="border-top: 1px solid var(--border); margin: 4px 0;"></div>
-                    <a href="/logout" class="dropdown-item" style="color: #ef4444; text-decoration: none;">🚪 Sign Out</a>
+                    <a href="/logout" onclick="handleSignOut(event)" class="dropdown-item" style="color: #ef4444; text-decoration: none;">🚪 Sign Out</a>
                 </div>
             </div>
         </div>
@@ -491,7 +491,7 @@
                     </select>
                 </div>
                 <label style="display: flex; justify-content: space-between; align-items: center; padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-weight: 600; font-size: 13px;">
-                    <span>🚨 Emergency DND Bypass (Priority Only)</span>
+                    <span>🚨 Allow P1 emergency alerts in Silent mode (DND Override)</span>
                     <input type="checkbox" id="dndBypassToggle" onchange="saveBoundarySettings()" style="width: 18px; height: 18px;">
                 </label>
             </div>
@@ -551,7 +551,7 @@
                             <button onclick="saveProfile()" class="submit-btn" style="flex: 2; padding: 10px 16px; font-size: 13px;">
                                 Save Profile Changes 💾
                             </button>
-                            <a href="/logout" style="flex: 1; text-align: center; background: #fee2e2; color: #dc2626; text-decoration: none; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: bold; border: 1px solid #fecaca; display: flex; align-items: center; justify-content: center;">
+                            <a href="/logout" onclick="handleSignOut(event)" style="flex: 1; text-align: center; background: #fee2e2; color: #dc2626; text-decoration: none; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: bold; border: 1px solid #fecaca; display: flex; align-items: center; justify-content: center;">
                                 Sign Out 🚪
                             </a>
                         </div>
@@ -1015,6 +1015,11 @@
             const workModeEl = document.getElementById('workModeToggle');
             if (workModeEl) workModeEl.checked = data.work_mode_enabled === 1;
             document.getElementById('dndBypassToggle').checked = data.dnd_bypass_enabled === 1;
+            if (window.AndroidGateway && window.AndroidGateway.getAllowP1InSilentMode) {
+                try {
+                    document.getElementById('dndBypassToggle').checked = window.AndroidGateway.getAllowP1InSilentMode();
+                } catch(e){}
+            }
             if (data.default_persona) {
                 const toneEl = document.getElementById('settingsToneSelect');
                 if (toneEl) toneEl.value = data.default_persona;
@@ -1064,12 +1069,25 @@
     async function saveBoundarySettings() {
         const toneVal = document.getElementById('settingsToneSelect') ? document.getElementById('settingsToneSelect').value : 'casual';
         const workModeVal = document.getElementById('workModeToggle') ? document.getElementById('workModeToggle').checked : true;
+        const dndBypass = document.getElementById('dndBypassToggle').checked;
+
+        if (window.AndroidGateway && window.AndroidGateway.setAllowP1InSilentMode) {
+            try {
+                window.AndroidGateway.setAllowP1InSilentMode(dndBypass);
+                if (dndBypass && window.AndroidGateway.isDndAccessGranted && !window.AndroidGateway.isDndAccessGranted()) {
+                    if (confirm("Android requires 'Do Not Disturb access' permission to allow P1 emergency alerts in silent mode. Would you like to open system settings now to grant it?")) {
+                        window.AndroidGateway.requestDndAccess();
+                    }
+                }
+            } catch(e){}
+        }
+
         const payload = {
             active_hours_enabled: document.getElementById('activeHoursToggle').checked,
             work_start_time: document.getElementById('workStartTime').value,
             work_end_time: document.getElementById('workEndTime').value,
             work_mode_enabled: workModeVal,
-            dnd_bypass_enabled: document.getElementById('dndBypassToggle').checked,
+            dnd_bypass_enabled: dndBypass,
             persona: toneVal,
             custom_topics: userPreferences.custom_topics,
             handling_stage: userPreferences.handling_stage,
@@ -1217,20 +1235,21 @@
         renderTasks();
     }
 
-    function isUpcomingCommitment(t) {
-        if (!t) return false;
-        const st = (t.status || 'Pending').toLowerCase();
-        if (st === 'completed' || st === 'cancelled' || st === 'dismissed') return false;
+    function getTaskLifecycleStatus(t) {
+        if (!t) return 'Upcoming';
+        const st = (t.status || 'Pending').trim();
+        if (st === 'Completed' || st === 'Dismissed' || st === 'Cancelled') return st;
+        if (t.computed_status) return t.computed_status;
         if (t.due_date) {
             try {
                 const timeStr = t.due_time ? t.due_time : '23:59:59';
                 const dueDt = new Date(`${t.due_date}T${timeStr}`);
                 if (!isNaN(dueDt.getTime()) && dueDt < new Date()) {
-                    return false;
+                    return 'Overdue';
                 }
             } catch (e) {}
         }
-        return true;
+        return 'Upcoming';
     }
 
     async function loadTasks() {
@@ -1240,11 +1259,12 @@
             const data = await res.json();
             allTasks = data.tasks || [];
 
-            const upcomingTasks = allTasks.filter(isUpcomingCommitment);
+            // Active tasks: non-completed, non-cancelled tasks (Upcoming and Overdue remain active!)
+            const activeTasks = allTasks.filter(t => (t.status || 'Pending').toLowerCase() !== 'completed' && (t.status || '').toLowerCase() !== 'cancelled');
             const countEl = document.getElementById('sidebarTaskCount');
-            if (countEl) countEl.innerText = upcomingTasks.length;
+            if (countEl) countEl.innerText = activeTasks.length;
             const statEl = document.getElementById('tasksStat');
-            if (statEl) statEl.innerText = upcomingTasks.length;
+            if (statEl) statEl.innerText = activeTasks.length;
 
             renderTasks();
         } catch (e) {
@@ -1259,13 +1279,13 @@
 
         let filtered = allTasks;
         if (currentTaskFilter === 'pending') {
-            filtered = allTasks.filter(t => !t.status || t.status === 'Pending');
+            filtered = allTasks.filter(t => (t.status || 'Pending').toLowerCase() !== 'completed' && (t.status || '').toLowerCase() !== 'cancelled');
         } else if (currentTaskFilter === 'completed') {
-            filtered = allTasks.filter(t => t.status === 'Completed');
+            filtered = allTasks.filter(t => (t.status || '').toLowerCase() === 'completed');
         }
 
         if (filtered.length === 0) {
-            let msg = 'No pending commitments.';
+            let msg = 'No active commitments.';
             if (currentTaskFilter === 'completed') msg = 'No completed tasks recorded yet.';
             if (currentTaskFilter === 'all') msg = 'No tasks recorded yet. Click "+ Add Task" to create one.';
             listDiv.innerHTML = `<div style="color: #888; font-size: 13px; text-align: center; padding: 28px;">${msg}</div>`;
@@ -1282,10 +1302,10 @@
             div.style.flexWrap = 'wrap';
             div.style.gap = '12px';
 
-            const isDone = t.status === 'Completed';
-            const isDismissed = t.status === 'Dismissed';
-            const badgeColor = isDone ? '#10b981' : isDismissed ? '#64748b' : '#f59e0b';
-            const statusLabel = t.status || 'Pending';
+            const displayStatus = getTaskLifecycleStatus(t);
+            const isDone = (t.status || '').toLowerCase() === 'completed';
+            const isOverdue = displayStatus === 'Overdue';
+            const badgeColor = isDone ? '#10b981' : (isOverdue ? '#ef4444' : '#f59e0b');
             const remLabel = (t.reminder_offset !== undefined && t.reminder_offset !== null && parseInt(t.reminder_offset) > 0) ? `🔔 ${t.reminder_offset}m prior` : '🔕 No reminder';
             const dueDisplay = (t.due_date || t.due_time) ? `${t.due_date || ''} ${t.due_time || ''}`.trim() : (t.deadline_text || 'Upcoming');
 
@@ -1473,6 +1493,23 @@
     // --- MEETING LINKS MANAGEMENT ---
     let allMeetings = [];
 
+    function getMeetingLifecycleStatus(m) {
+        if (!m) return 'Upcoming';
+        const st = (m.status || 'Scheduled').trim();
+        if (st === 'Completed' || st === 'Cancelled') return st;
+        if (m.computed_status) return m.computed_status;
+        if (m.meeting_date) {
+            try {
+                const timeStr = m.start_time ? m.start_time : '23:59:59';
+                const mDt = new Date(`${m.meeting_date}T${timeStr}`);
+                if (!isNaN(mDt.getTime()) && mDt < new Date()) {
+                    return 'Overdue';
+                }
+            } catch (e) {}
+        }
+        return 'Upcoming';
+    }
+
     async function loadMeetings() {
         try {
             const res = await fetch('/get_meetings');
@@ -1480,8 +1517,10 @@
             const data = await res.json();
             allMeetings = data.meetings || [];
             
+            // Count active meetings (not cancelled or completed)
+            const activeMeetings = allMeetings.filter(m => (m.status || 'Scheduled').toLowerCase() !== 'cancelled' && (m.status || '').toLowerCase() !== 'completed');
             const badgeEl = document.getElementById('sidebarMeetingCount');
-            if (badgeEl) badgeEl.innerText = allMeetings.length;
+            if (badgeEl) badgeEl.innerText = activeMeetings.length;
 
             renderMeetings();
         } catch (e) {
@@ -1517,8 +1556,10 @@
                 'Jitsi Meet': '#0284c7'
             };
             const pColor = platformColors[m.platform] || '#2563eb';
-            const mStatus = m.status || 'Scheduled';
-            const statusColor = mStatus === 'Completed' ? '#10b981' : (mStatus === 'Cancelled' ? '#ef4444' : '#2563eb');
+            const displayStatus = getMeetingLifecycleStatus(m);
+            const isDone = (m.status || '').toLowerCase() === 'completed';
+            const isOverdue = displayStatus === 'Overdue';
+            const statusColor = isDone ? '#10b981' : (isOverdue ? '#ef4444' : (displayStatus === 'Cancelled' ? '#64748b' : '#2563eb'));
             const remLabel = (m.reminder_offset !== undefined && m.reminder_offset !== null && parseInt(m.reminder_offset) > 0) ? `🔔 ${m.reminder_offset}m prior` : '🔕 No reminder';
             const timeDisplay = (m.meeting_date || m.start_time) ? `${m.meeting_date || ''} ${m.start_time || ''}`.trim() : (m.scheduled_time || 'Upcoming');
 
@@ -1526,7 +1567,7 @@
                 <div style="flex: 1; min-width: 220px;">
                     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
                         <span class="badge" style="background: ${pColor}; font-size: 11px;">${escapeHtml(m.platform)}</span>
-                        <span class="badge" style="background: ${statusColor}; font-size: 10px;">${escapeHtml(mStatus)}</span>
+                        <span class="badge" style="background: ${statusColor}; font-size: 10px;">${escapeHtml(displayStatus)}</span>
                         <strong style="font-size: 14px; color: #0f172a;">${escapeHtml(m.title || m.platform + ' Call')}</strong>
                     </div>
                     <div style="font-size: 12px; color: #64748b; margin-bottom: 4px; display: flex; gap: 14px; flex-wrap: wrap;">
@@ -1539,6 +1580,11 @@
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
                     <a href="${escapeHtml(m.meeting_url)}" target="_blank" class="directive-card" style="margin:0; text-decoration:none; background:#2563eb; color:white; padding:7px 13px; border-radius:6px; font-size:12px; font-weight:600;">Launch 🚀</a>
+                    ${isDone ? `
+                        <button onclick="updateMeetingStatus(${m.id}, 'Scheduled')" style="background:#f59e0b; color:white; border:none; padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Reopen meeting">Reopen 🔄</button>
+                    ` : `
+                        <button onclick="updateMeetingStatus(${m.id}, 'Completed')" style="background:#10b981; color:white; border:none; padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Mark meeting completed">Done ✅</button>
+                    `}
                     <button onclick="copyMeetingLinkById(${m.id})" style="background:#f1f5f9; color:#334155; border:1px solid var(--border); padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Copy URL">Copy 📋</button>
                     <button onclick="openMeetingModalById(${m.id})" style="background:#3b82f6; color:white; border:none; padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Edit meeting">Edit ✏️</button>
                     <button onclick="deleteMeeting(${m.id})" style="background:#ef4444; color:white; border:none; padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Delete meeting permanently">Delete 🗑️</button>
@@ -1546,6 +1592,24 @@
             `;
             listDiv.appendChild(div);
         });
+    }
+
+    async function updateMeetingStatus(meetingId, newStatus) {
+        try {
+            const res = await fetch('/update_meeting_status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ meeting_id: meetingId, status: newStatus })
+            });
+            if (res.ok) {
+                if (window.AndroidGateway && window.AndroidGateway.syncReminders) {
+                    try { window.AndroidGateway.syncReminders(); } catch(e){}
+                }
+                await loadMeetings();
+            }
+        } catch(e) {
+            console.error('Failed to update meeting status:', e);
+        }
     }
 
     function openMeetingModalById(id) {
@@ -1908,6 +1972,12 @@
             });
             alert('🛡️ Dispatch successfully recalled! No message was sent.');
             activeReplyId = null;
+        }
+    }
+
+    function handleSignOut(e) {
+        if (window.AndroidGateway && window.AndroidGateway.onLogout) {
+            try { window.AndroidGateway.onLogout(); } catch(err){}
         }
     }
 

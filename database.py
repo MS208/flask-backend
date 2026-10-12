@@ -2,6 +2,7 @@ import os
 import sqlite3
 import hashlib
 import time
+from datetime import datetime
 from urllib.parse import urlparse
 from temporal_engine import calculate_reminder_timestamp
 
@@ -441,6 +442,22 @@ def get_quarantined_messages(username):
 
 # --- Meeting Database Operations ---
 
+def compute_item_status(status_val, date_val, time_val, default_active="Upcoming"):
+    st = (status_val or default_active).strip()
+    if st in ("Completed", "Cancelled", "Dismissed"):
+        return st
+    if not date_val:
+        return "Upcoming"
+    try:
+        t_str = time_val.strip() if time_val and time_val.strip() else "23:59:59"
+        dt_str = f"{date_val.strip()} {t_str[:5]}"
+        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
+        if dt < datetime.now():
+            return "Overdue"
+        return "Upcoming"
+    except Exception:
+        return "Upcoming"
+
 def get_meetings_for_user(username):
     uname = (username or 'admin').strip().lower()
     rows = query_db("""
@@ -461,6 +478,7 @@ def get_meetings_for_user(username):
             'reminder_offset': row.get('reminder_offset') if row.get('reminder_offset') is not None else 30,
             'reminder_timestamp': row.get('reminder_timestamp'),
             'status': row.get('status') or 'Scheduled',
+            'computed_status': compute_item_status(row.get('status'), row.get('meeting_date'), row.get('start_time'), 'Upcoming'),
             'title': row.get('title') or f"{row.get('platform', 'Meeting')} Meeting",
             'source_message': row.get('source_message') or '',
             'sender': row.get('sender') or '',
@@ -569,6 +587,31 @@ def update_meeting(meeting_id, username, platform, meeting_url, scheduled_time="
         except Exception:
             pass
 
+def update_meeting_status(meeting_id, username, status):
+    uname = (username or 'admin').strip().lower()
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        if is_postgres():
+            cursor.execute("""
+                UPDATE meetings 
+                SET status = %s
+                WHERE id = %s AND LOWER(username) = %s
+            """, (status, meeting_id, uname))
+        else:
+            cursor.execute("""
+                UPDATE meetings 
+                SET status = ?
+                WHERE id = ? AND LOWER(username) = ?
+            """, (status, meeting_id, uname))
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
 def delete_meeting(meeting_id, username):
     uname = (username or 'admin').strip().lower()
     conn = get_db_connection()
@@ -605,6 +648,7 @@ def get_tasks_for_user(username):
             'deadline_text': row.get('deadline_text') or 'No deadline specified',
             'buffer_lead': row.get('buffer_lead') or '30m prior',
             'status': row.get('status') or 'Pending',
+            'computed_status': compute_item_status(row.get('status'), row.get('due_date'), row.get('due_time'), 'Upcoming'),
             'due_date': row.get('due_date') or '',
             'due_time': row.get('due_time') or '',
             'reminder_offset': row.get('reminder_offset') if row.get('reminder_offset') is not None else 30,

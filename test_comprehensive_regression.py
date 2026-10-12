@@ -51,6 +51,36 @@ class TestComprehensiveRegression(unittest.TestCase):
             self.assertEqual(res['badge_color'], "#ef4444")
             self.assertEqual(res['classification'], "Urgent")
 
+    def test_expanded_p1_urgent_expressions(self):
+        expanded_p1_msgs = [
+            "Emergency!",
+            "It's an emergency, someone is hurt!",
+            "Help me immediately, I'm in danger",
+            "Call me now",
+            "Please respond ASAP",
+            "Need help urgently",
+            "Can't breathe",
+            "SOS! Send an ambulance"
+        ]
+        for msg in expanded_p1_msgs:
+            res = classify_message_context(msg, 'Ham', 0.95)
+            self.assertEqual(res['priority'], "P1 - URGENT", f"Expected P1 for: {msg}")
+            self.assertEqual(res['classification'], "Urgent")
+
+    def test_expanded_p2_important_expressions(self):
+        expanded_p2_msgs = [
+            "We need to talk about the project.",
+            "u need to see that new design update",
+            "Don't forget the sprint review tomorrow at 3pm",
+            "Deadline tomorrow for the marketing deck",
+            "pls check the attached invoice and confirm",
+            "ur report is due before 5pm today"
+        ]
+        for msg in expanded_p2_msgs:
+            res = classify_message_context(msg, 'Ham', 0.95)
+            self.assertEqual(res['priority'], "P2 - IMPORTANT", f"Expected P2 for: {msg}")
+            self.assertEqual(res['classification'], "Important")
+
     def test_non_emergencies_disqualified_from_p1(self):
         non_emergencies = [
             "Can you help me with this homework assignment tonight?",
