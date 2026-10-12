@@ -12,6 +12,7 @@ from temporal_engine import (
     detect_meeting_platform,
     validate_meeting_url
 )
+from url_safety import assess_url_safety, extract_first_url
 from database import (
     get_db,
     init_db,
@@ -23,6 +24,7 @@ from database import (
     verify_user,
     get_user_profile,
     update_user_profile,
+    change_user_password,
     get_meetings_for_user,
     add_meeting,
     update_meeting,
@@ -154,6 +156,28 @@ def update_profile():
     session['full_name'] = full_name
     session['email'] = email
     return jsonify({'status': 'success', 'message': msg, 'full_name': full_name, 'email': email})
+
+@app.route('/change_password', methods=['POST'])
+def change_password():
+    username = resolve_username_or_default(session.get('username'))
+    if not username:
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.json or {}
+    old_password = data.get('current_password', '').strip()
+    new_password = data.get('new_password', '').strip()
+    confirm_password = data.get('confirm_password', '').strip()
+
+    if not old_password or not new_password:
+        return jsonify({'status': 'error', 'message': 'Current and new password are required.'}), 400
+
+    if new_password != confirm_password:
+        return jsonify({'status': 'error', 'message': 'New passwords do not match.'}), 400
+
+    ok, msg = change_user_password(username, old_password, new_password)
+    if not ok:
+        return jsonify({'status': 'error', 'message': msg}), 400
+
+    return jsonify({'status': 'success', 'message': msg})
 
 @app.route('/get_settings', methods=['GET'])
 def get_settings():
@@ -970,6 +994,22 @@ def dispatch_reply():
         return jsonify({"status": "aborted", "message": "Draft was already recalled."})
     return jsonify({"error": "Draft ID not found"}), 404
 
+@app.route('/check_url_safety', methods=['POST'])
+def check_url_safety():
+    data = request.json or {}
+    raw_url = data.get('url', '').strip()
+    if not raw_url:
+        return jsonify({
+            "url": "",
+            "safety_percentage": None,
+            "risk_level": "Inconclusive",
+            "explanation": "Inconclusive: No URL provided. Enter a valid web link to assess.",
+            "checks_performed": ["local_url_validation"],
+            "findings": ["No input provided"]
+        })
+    result = assess_url_safety(raw_url)
+    return jsonify(result)
+
 @app.route('/analyze', methods=['POST'])
 def analyze():
     username = resolve_username_or_default(session.get('username'))
@@ -1032,6 +1072,9 @@ def analyze():
         except Exception as e:
             print("Task save error in analyze:", e)
 
+    extracted_url = extract_first_url(message)
+    url_safety_result = assess_url_safety(extracted_url) if extracted_url else None
+
     formatted = {
         'analysis': {
             'Sentiment': {
@@ -1060,7 +1103,8 @@ def analyze():
         'relay_directives': results['Relay Directives'],
         'meeting_links': saved_meetings,
         'meeting_info': extract_meeting_links(message),
-        'task_info': saved_task
+        'task_info': saved_task,
+        'url_safety': url_safety_result
     }
     return jsonify(formatted)
 

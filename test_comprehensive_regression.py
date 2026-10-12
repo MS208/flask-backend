@@ -428,7 +428,7 @@ class TestComprehensiveRegression(unittest.TestCase):
         # Check key structural sections
         self.assertIn('id="topNavBar"', html)
         self.assertIn('id="threeDotsBtn"', html)
-        self.assertIn('id="quickDropdownMenu"', html)
+        self.assertNotIn('id="quickDropdownMenu"', html)
         self.assertIn('id="overviewView"', html)
         self.assertIn('id="meetingsView"', html)
         self.assertIn('id="tasksView"', html)
@@ -533,13 +533,59 @@ class TestComprehensiveRegression(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         html = res.data.decode('utf-8')
 
-        # Active Persona selector and Thread Turns input should be removed
+        # Active Persona selector, Thread Turns input, and three-dot quick menu should be removed
         self.assertNotIn('id="userPersona"', html, "userPersona selector should be removed from assistant")
         self.assertNotIn('id="threadCountInput"', html, "threadCountInput should be removed from assistant")
+        self.assertNotIn('quick-three-dots-btn', html, "extra three-dot button should be removed from header")
+        self.assertNotIn('id="quickDropdownMenu"', html, "quickDropdownMenu should be removed")
+        self.assertNotIn('System Administrator', html, "System Administrator label should be removed from profile")
+        self.assertNotIn('id="editDraftModal"', html, "editDraftModal should be removed from assistant")
+        self.assertNotIn('id="undoCard"', html, "undoCard should be removed")
 
-        # Editable profile inputs should be present
+        # Editable profile inputs and password inputs should be present
         self.assertIn('id="profileFullName"', html, "profileFullName input should be in profileView")
         self.assertIn('id="profileEmail"', html, "profileEmail input should be in profileView")
+        self.assertIn('id="currentPasswordInput"', html, "currentPasswordInput should be in profileView")
+        self.assertIn('id="newPasswordInput"', html, "newPasswordInput should be in profileView")
+        self.assertIn('id="confirmPasswordInput"', html, "confirmPasswordInput should be in profileView")
+
+    def test_change_password_endpoint(self):
+        import uuid
+        from database import register_user, verify_user
+        uname = f"testuser_{uuid.uuid4().hex[:6]}"
+        register_user(uname, f"{uname}@example.com", 'Test User', 'oldpass123')
+
+        with self.client.session_transaction() as sess:
+            sess['logged_in'] = True
+            sess['username'] = uname
+
+        # Test wrong current password
+        res_fail = self.client.post('/change_password', data=json.dumps({
+            'current_password': 'wrongpassword',
+            'new_password': 'newpass123',
+            'confirm_password': 'newpass123'
+        }), content_type='application/json')
+        self.assertEqual(res_fail.status_code, 400)
+
+        # Test mismatched new passwords
+        res_mismatch = self.client.post('/change_password', data=json.dumps({
+            'current_password': 'oldpass123',
+            'new_password': 'newpass123',
+            'confirm_password': 'differentpass'
+        }), content_type='application/json')
+        self.assertEqual(res_mismatch.status_code, 400)
+
+        # Test successful password change
+        res_ok = self.client.post('/change_password', data=json.dumps({
+            'current_password': 'oldpass123',
+            'new_password': 'newpass123',
+            'confirm_password': 'newpass123'
+        }), content_type='application/json')
+        self.assertEqual(res_ok.status_code, 200)
+
+        # Verify old password no longer works and new password works
+        self.assertIsNone(verify_user(uname, 'oldpass123'))
+        self.assertIsNotNone(verify_user(uname, 'newpass123'))
 
     def test_tone_settings_influences_analyze_directives(self):
         with self.client.session_transaction() as sess:
@@ -862,6 +908,113 @@ class TestComprehensiveRegression(unittest.TestCase):
         self.assertEqual(data.get('custom_topics'), 'Server Outage, Client Pitch, Budget Approval')
         self.assertEqual(data.get('handling_stage'), 'immediate')
         self.assertEqual(data.get('spam_handling'), 'digest')
+
+    # ==========================================
+    # 8. URL SAFETY PERCENTAGE CHECKER TESTS
+    # ==========================================
+    def test_url_safety_engine_direct(self):
+        from url_safety import assess_url_safety, extract_first_url
+
+        # Text extraction
+        self.assertEqual(extract_first_url("Join here: https://meet.google.com/abc-xyz"), "https://meet.google.com/abc-xyz")
+        self.assertEqual(extract_first_url("No link in this message"), None)
+
+        # Reputable HTTPS link -> Lower Risk (capped at 92%, never 100%)
+        res_rep = assess_url_safety("https://meet.google.com/test-room")
+        self.assertEqual(res_rep['risk_level'], "Lower Risk")
+        self.assertGreaterEqual(res_rep['safety_percentage'], 70)
+        self.assertLessEqual(res_rep['safety_percentage'], 92)
+
+        # Shortener -> Suspicious
+        res_short = assess_url_safety("http://bit.ly/masked-target")
+        self.assertEqual(res_short['risk_level'], "Suspicious")
+        self.assertGreaterEqual(res_short['safety_percentage'], 40)
+        self.assertLess(res_short['safety_percentage'], 70)
+
+        # Private IP -> High Risk
+        res_priv = assess_url_safety("http://192.168.1.1/router-login")
+        self.assertEqual(res_priv['risk_level'], "High Risk")
+        self.assertLess(res_priv['safety_percentage'], 40)
+
+        # Dangerous scheme -> High Risk
+        res_js = assess_url_safety("javascript:alert(document.cookie)")
+        self.assertEqual(res_js['risk_level'], "High Risk")
+        self.assertEqual(res_js['safety_percentage'], 5)
+
+        # Invalid/Inconclusive -> None percentage, never invent numbers
+        res_empty = assess_url_safety("")
+        self.assertEqual(res_empty['risk_level'], "Inconclusive")
+        self.assertIsNone(res_empty['safety_percentage'])
+
+        res_plain = assess_url_safety("not a url at all")
+        self.assertEqual(res_plain['risk_level'], "Inconclusive")
+        self.assertIsNone(res_plain['safety_percentage'])
+
+    def test_url_safety_route(self):
+        # Reputable URL
+        res1 = self.client.post('/check_url_safety', data=json.dumps({'url': 'https://zoom.us/j/123456789'}), content_type='application/json')
+        self.assertEqual(res1.status_code, 200)
+        data1 = res1.get_json()
+        self.assertEqual(data1['risk_level'], "Lower Risk")
+        self.assertGreaterEqual(data1['safety_percentage'], 70)
+        self.assertLessEqual(data1['safety_percentage'], 92)
+
+        # High-risk URL
+        res2 = self.client.post('/check_url_safety', data=json.dumps({'url': 'http://127.0.0.1:8080/exploit'}), content_type='application/json')
+        self.assertEqual(res2.status_code, 200)
+        data2 = res2.get_json()
+        self.assertEqual(data2['risk_level'], "High Risk")
+        self.assertLess(data2['safety_percentage'], 40)
+
+        # Empty/inconclusive URL
+        res3 = self.client.post('/check_url_safety', data=json.dumps({'url': ''}), content_type='application/json')
+        self.assertEqual(res3.status_code, 200)
+        data3 = res3.get_json()
+        self.assertEqual(data3['risk_level'], "Inconclusive")
+        self.assertIsNone(data3['safety_percentage'])
+
+    def test_analyze_integration_with_url_safety(self):
+        with self.client.session_transaction() as sess:
+            sess['logged_in'] = True
+            sess['username'] = 'admin'
+
+        # Message containing a URL
+        msg_with_url = "Team sync starting now at https://meet.google.com/sync-abc-def"
+        res = self.client.post('/analyze', data=json.dumps({'message': msg_with_url}), content_type='application/json')
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertIn('url_safety', data)
+        self.assertIsNotNone(data['url_safety'])
+        self.assertEqual(data['url_safety']['risk_level'], "Lower Risk")
+        self.assertGreaterEqual(data['url_safety']['safety_percentage'], 70)
+
+        # Message without a URL
+        msg_without_url = "Please confirm you received the shipment invoice."
+        res2 = self.client.post('/analyze', data=json.dumps({'message': msg_without_url}), content_type='application/json')
+        self.assertEqual(res2.status_code, 200)
+        data2 = res2.get_json()
+        self.assertIn('url_safety', data2)
+        self.assertIsNone(data2['url_safety'])
+
+    def test_url_safety_ui_elements_in_console(self):
+        with self.client.session_transaction() as sess:
+            sess['logged_in'] = True
+            sess['username'] = 'admin'
+
+        res = self.client.get('/')
+        self.assertEqual(res.status_code, 200)
+        html = res.data.decode('utf-8')
+
+        # Check URL input and check button
+        self.assertIn('id="urlSafetyInput"', html)
+        self.assertIn('checkUrlSafety()', html)
+        # Check repurposed percentage header
+        self.assertIn('URL Safety Checker (%):', html)
+        self.assertNotIn('Model Confidence Diagnostics (%):', html)
+        # Check reused analysis grid and badges
+        self.assertIn('id="analysisGrid"', html)
+        self.assertIn('id="urlRiskBadge"', html)
+        self.assertIn('id="urlSafetyExplanation"', html)
 
 if __name__ == '__main__':
     unittest.main()

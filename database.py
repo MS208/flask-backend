@@ -353,14 +353,14 @@ def get_user_profile(username):
             'username': uname,
             'email': f"{uname}@gateway.com",
             'full_name': uname.capitalize(),
-            'role': 'System Administrator'
+            'role': 'User'
         }
     return {
         'id': user['id'],
         'username': user['username'],
         'email': user['email'],
         'full_name': user['full_name'],
-        'role': 'System Administrator'
+        'role': 'User'
     }
 
 def update_user_profile(username, full_name, email):
@@ -388,6 +388,41 @@ def update_user_profile(username, full_name, email):
         if "unique constraint" in err_msg or "duplicate key" in err_msg:
             return False, "Email address is already in use by another account."
         return False, f"Failed to update profile: {str(e)}"
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+def change_user_password(username, old_password, new_password):
+    uname = (username or 'admin').strip().lower()
+    if not uname:
+        return False, "Invalid username."
+    if not old_password or not new_password:
+        return False, "Current and new password cannot be empty."
+    if len(new_password) < 4:
+        return False, "New password must be at least 4 characters long."
+
+    user = verify_user(uname, old_password)
+    if not user:
+        return False, "Current password is incorrect."
+
+    new_hash = hashlib.sha256(new_password.encode()).hexdigest()
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        if is_postgres():
+            cursor.execute("""
+                UPDATE users SET password_hash = %s WHERE LOWER(username) = %s
+            """, (new_hash, uname))
+        else:
+            cursor.execute("""
+                UPDATE users SET password_hash = ? WHERE LOWER(username) = ?
+            """, (new_hash, uname))
+        conn.commit()
+        return True, "Password updated successfully."
+    except Exception as e:
+        return False, f"Failed to update password: {str(e)}"
     finally:
         try:
             conn.close()

@@ -164,23 +164,10 @@
         }
         .close-btn { position: absolute; top: 20px; right: 24px; font-size: 22px; font-weight: bold; color: #94a3b8; cursor: pointer; border: none; background: none; }
 
-        .undo-card {
-            position: fixed; bottom: 28px; right: 28px;
-            background: #0f172a; color: white; padding: 16px 22px;
-            border-radius: 12px; box-shadow: 0 16px 36px rgba(0,0,0,0.35);
-            display: none; z-index: 999999; min-width: 300px; max-width: calc(100vw - 40px);
-            border: 1px solid rgba(255,255,255,0.15);
-        }
-        .undo-btn {
-            background: #ef4444; color: white; border: none; padding: 7px 16px;
-            border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 14px;
-        }
-        .undo-btn:hover { background: #dc2626; }
-
         /* Responsive and Navigation Bar Styles */
         .top-nav-bar {
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-start;
             align-items: center;
             background: #ffffff;
             border-bottom: 1px solid var(--border);
@@ -211,47 +198,6 @@
             font-weight: 700;
             color: var(--text-dark);
         }
-        .quick-dropdown-wrapper { position: relative; }
-        .quick-three-dots-btn {
-            background: #f1f5f9;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            font-size: 20px;
-            font-weight: bold;
-            color: var(--text-dark);
-            cursor: pointer;
-            width: 38px;
-            height: 38px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-        }
-        .quick-three-dots-btn:hover { background: #e2e8f0; }
-        .quick-dropdown-menu {
-            position: absolute;
-            right: 0;
-            top: 46px;
-            background: #ffffff;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-            min-width: 230px;
-            z-index: 1000;
-            padding: 6px 0;
-        }
-        .dropdown-item {
-            padding: 10px 16px;
-            font-size: 13px;
-            font-weight: 600;
-            color: #334155;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            transition: background 0.15s;
-        }
-        .dropdown-item:hover { background: #f1f5f9; color: var(--primary); }
         .sidebar-backdrop {
             display: none;
             position: fixed;
@@ -302,18 +248,15 @@
         <div class="brand-header" onclick="switchView('overviewView', document.querySelector('[data-view=\'overviewView\']')); closeNavMenu();" style="cursor: pointer;" title="Go to Smart Messaging Gateway">
             <span>📡</span> Smart Messaging Gateway
         </div>
-        <div class="user-profile" onclick="switchView('profileView', document.querySelector('[data-view=\'profileView\']')); closeNavMenu();" style="cursor: pointer;" title="View Admin & User Profile">
-            <div class="user-avatar" id="avatarInitial">{{ username[0] if username else 'A' }}</div>
+        <div class="user-profile" onclick="switchView('profileView', document.querySelector('[data-view=\'profileView\']')); closeNavMenu();" style="cursor: pointer;" title="View User Profile">
+            <div class="user-avatar" id="avatarInitial">{{ username[0] if username else 'U' }}</div>
             <div class="user-info">
-                <span class="user-name">{{ username if username else 'Admin' }}</span>
-                <span class="user-role">Online Agent (Admin)</span>
+                <span class="user-name">{{ username if username else 'User' }}</span>
+                <span class="user-role">Active Account</span>
             </div>
         </div>
 
         <ul class="nav-list">
-            <li class="nav-item" data-view="overviewView" onclick="switchView('overviewView', this); closeNavMenu();">
-                <span class="nav-label"><span>📡</span> Smart Messaging Gateway</span>
-            </li>
             <li class="nav-item active" data-view="overviewView" onclick="switchView('overviewView', this); closeNavMenu();">
                 <span class="nav-label"><span>📊</span> Overview</span>
             </li>
@@ -345,7 +288,7 @@
 </div>
 
 <div class="main-wrapper">
-    <!-- Top Navigation Header with Three-Dot Menu (Works on laptop and mobile) -->
+    <!-- Top Navigation Header -->
     <div class="top-nav-bar" id="topNavBar">
         <div style="display: flex; align-items: center; gap: 10px;">
             <button class="three-dot-menu-btn" id="threeDotsBtn" onclick="toggleNavMenu()" title="Open Navigation Menu" aria-label="Menu">
@@ -354,25 +297,6 @@
             <span class="top-bar-title" onclick="switchView('overviewView', document.querySelector('[data-view=\'overviewView\']'))" style="cursor: pointer;">
                 📡 Smart Messaging Gateway
             </span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <div class="quick-dropdown-wrapper">
-                <button class="quick-three-dots-btn" onclick="toggleQuickMenu(event)" title="Quick Actions & Navigation Menu" aria-label="Options">
-                    <span>⋮</span>
-                </button>
-                <div class="quick-dropdown-menu" id="quickDropdownMenu" style="display: none;">
-                    <div class="dropdown-item" onclick="switchView('overviewView', document.querySelector('[data-view=\'overviewView\']')); closeQuickMenu();">📡 Smart Messaging Gateway</div>
-                    <div class="dropdown-item" onclick="switchView('profileView', document.querySelector('[data-view=\'profileView\']')); closeQuickMenu();">👤 Admin (User Profile)</div>
-                    <div class="dropdown-item" onclick="switchView('overviewView', document.querySelector('[data-view=\'overviewView\']')); closeQuickMenu();">📊 Overview</div>
-                    <div class="dropdown-item" onclick="openAssistantModal(); closeQuickMenu();">💬 Assistant</div>
-                    <div class="dropdown-item" onclick="switchView('meetingsView', document.querySelector('[data-view=\'meetingsView\']')); loadMeetings(); closeQuickMenu();">📹 Meeting Links</div>
-                    <div class="dropdown-item" onclick="switchView('tasksView', document.querySelector('[data-view=\'tasksView\']')); loadTasks(); closeQuickMenu();">⏰ Upcoming Tasks</div>
-                    <div class="dropdown-item" onclick="startQuestionnaire(0); closeQuickMenu();">⭐ Message Preference</div>
-                    <div class="dropdown-item" onclick="switchView('settingsView', document.querySelector('[data-view=\'settingsView\']')); closeQuickMenu();">⚙️ Tone and Boundaries</div>
-                    <div style="border-top: 1px solid var(--border); margin: 4px 0;"></div>
-                    <a href="/logout" onclick="handleSignOut(event)" class="dropdown-item" style="color: #ef4444; text-decoration: none;">🚪 Sign Out</a>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -524,13 +448,13 @@
                 <!-- Profile Edit Form Card -->
                 <div style="background: #ffffff; border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                     <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--border);">
-                        <div id="profileAvatarLetter" style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: bold; text-transform: uppercase; box-shadow: 0 2px 6px rgba(249, 115, 22, 0.3);">
-                            {{ (full_name[0] if full_name else username[0]) if (full_name or username) else 'A' }}
+                        <div id="profileAvatarLetter" style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: white; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: bold; text-transform: uppercase; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);">
+                            {{ (full_name[0] if full_name else username[0]) if (full_name or username) else 'U' }}
                         </div>
                         <div>
                             <h4 id="profileNameDisplay" style="font-size: 1.15rem; color: #0f172a; margin-bottom: 4px;">{{ full_name if full_name else username }}</h4>
                             <div style="display: flex; gap: 8px; align-items: center;">
-                                <span style="font-size: 11px; background: #e0f2fe; color: #0284c7; padding: 3px 10px; border-radius: 12px; font-weight: 600;">System Administrator</span>
+                                <span style="font-size: 11px; background: #e0f2fe; color: #0284c7; padding: 3px 10px; border-radius: 12px; font-weight: 600;">User Account</span>
                                 <span style="font-size: 11px; background: #dcfce7; color: #15803d; padding: 3px 10px; border-radius: 12px; font-weight: 600;">Active</span>
                             </div>
                         </div>
@@ -540,17 +464,17 @@
                     <div style="display: flex; flex-direction: column; gap: 14px;">
                         <div>
                             <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px;">Full Name</label>
-                            <input type="text" id="profileFullName" value="{{ full_name if full_name else username }}" placeholder="Your Full Name" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px;">
+                            <input type="text" id="profileFullName" value="{{ full_name if full_name else username }}" placeholder="Your Full Name" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; box-sizing: border-box;">
                         </div>
 
                         <div>
                             <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px;">Email Address</label>
-                            <input type="email" id="profileEmail" value="{{ email if email else 'admin@gateway.com' }}" placeholder="your.email@domain.com" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px;">
+                            <input type="email" id="profileEmail" value="{{ email if email else '' }}" placeholder="your.email@domain.com" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; box-sizing: border-box;">
                         </div>
 
                         <div>
-                            <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px;">Username (Fixed Account Identifier)</label>
-                            <input type="text" id="profileUsername" value="{{ username if username else 'admin' }}" readonly disabled style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: #f1f5f9; color: #64748b; cursor: not-allowed;">
+                            <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px;">Username (Account Identifier)</label>
+                            <input type="text" id="profileUsername" value="{{ username if username else 'user' }}" readonly disabled style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: #f1f5f9; color: #64748b; cursor: not-allowed; box-sizing: border-box;">
                         </div>
 
                         <div id="profileSaveStatus" style="display: none; font-size: 12px; font-weight: 600; padding: 8px 12px; border-radius: 6px; background: #f8fafc;"></div>
@@ -566,41 +490,40 @@
                     </div>
                 </div>
 
-                <!-- System Controls & App Info Card -->
+                <!-- Security & Account Settings Card -->
                 <div style="background: #ffffff; border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: space-between;">
                     <div>
-                        <h4 style="margin-bottom: 16px; font-size: 1rem; color: #0f172a;">⚙️ System Environment & Status</h4>
-                        <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13px;">
-                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
-                                <span style="color: #64748b;">Backend Service:</span>
-                                <span style="color: #10b981; font-weight: 600;">● Render Production (Online)</span>
+                        <h4 style="margin-bottom: 16px; font-size: 1rem; color: #0f172a;">🔒 Security & Password</h4>
+                        <div style="display: flex; flex-direction: column; gap: 14px;">
+                            <div>
+                                <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px;">Current Password</label>
+                                <input type="password" id="currentPasswordInput" placeholder="Enter current password" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; box-sizing: border-box;">
                             </div>
-                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
-                                <span style="color: #64748b;">Database Connection:</span>
-                                <span style="color: #10b981; font-weight: 600;">● Connected (PostgreSQL / SQLite)</span>
+                            <div>
+                                <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px;">New Password</label>
+                                <input type="password" id="newPasswordInput" placeholder="Enter new password (min. 4 characters)" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; box-sizing: border-box;">
                             </div>
-                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
-                                <span style="color: #64748b;">Notification Service:</span>
-                                <span style="color: #10b981; font-weight: 600;">● Active Listener</span>
+                            <div>
+                                <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px;">Confirm New Password</label>
+                                <input type="password" id="confirmPasswordInput" placeholder="Confirm new password" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; box-sizing: border-box;">
                             </div>
-                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
-                                <span style="color: #64748b;">Proactive Buffer Reminders:</span>
-                                <span style="color: #2563eb; font-weight: 600;">● Active (AlarmManager)</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; padding-bottom: 4px;">
-                                <span style="color: #64748b;">Application Version:</span>
-                                <span style="color: #0f172a; font-weight: 600;">v2.4 Enterprise Production</span>
-                            </div>
+                            <div id="passwordStatus" style="display: none; font-size: 12px; font-weight: 600; padding: 8px 12px; border-radius: 6px;"></div>
+                            <button onclick="changePassword()" class="submit-btn" style="padding: 10px 16px; font-size: 13px; background: #0f172a;">
+                                Update Password 🔑
+                            </button>
                         </div>
                     </div>
 
-                    <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 10px;">
-                        <button onclick="startQuestionnaire(0)" class="submit-btn" style="width: 100%; padding: 11px; font-size: 13px; background: #2563eb;">
-                            ⭐ Configure Message Preferences
-                        </button>
-                        <button onclick="switchView('settingsView', null)" style="width: 100%; padding: 11px; font-size: 13px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; font-weight: 600; cursor: pointer; color: #334155;">
-                            ⚙️ Configure Tone & Boundaries
-                        </button>
+                    <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border);">
+                        <h4 style="margin-bottom: 12px; font-size: 0.95rem; color: #0f172a;">Account Preferences</h4>
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            <button onclick="startQuestionnaire(0)" class="submit-btn" style="width: 100%; padding: 11px; font-size: 13px; background: #2563eb;">
+                                ⭐ Configure Message Preferences
+                            </button>
+                            <button onclick="switchView('settingsView', null)" style="width: 100%; padding: 11px; font-size: 13px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; font-weight: 600; cursor: pointer; color: #334155;">
+                                ⚙️ Configure Tone & Boundaries
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -614,36 +537,31 @@
     <div class="wizard-box" style="min-height: auto;">
         <button class="close-btn" onclick="closeAssistantModal()">&times;</button>
         <h3 style="margin-bottom: 4px;">💬 Assistant Control Console</h3>
-        <p style="font-size: 13px; color: #64748b; margin-bottom: 14px;">Infers intent, generates personalized response suggestions, and auto-detects meetings and tasks.</p>
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 14px;">Infers intent, extracts action items, and auto-detects meetings and tasks.</p>
 
-        <textarea id="messageInput" placeholder="Type or paste incoming message to analyze..." style="height: 100px; margin-bottom: 12px;"></textarea>
+        <textarea id="messageInput" placeholder="Type or paste incoming message to analyze..." style="height: 80px; margin-bottom: 10px;"></textarea>
         <button class="submit-btn" onclick="processMessage()">Execute Assistant 🚀</button>
 
-        <div id="resultsSection" style="display: none; margin-top: 14px; max-height: 250px; overflow-y: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
-                <h4 style="font-size: 13px;">Personalized Choices (Tap to Edit & Dispatch with 7s Undo):</h4>
+        <div style="margin: 14px 0 6px 0; padding-top: 12px; border-top: 1px solid var(--border);">
+            <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px;">Check URL Before Opening:</label>
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="urlSafetyInput" placeholder="Paste link to check (e.g. https://meet.google.com/xyz)..." style="flex: 1; padding: 8px 12px; font-size: 13px; border: 1px solid var(--border); border-radius: 6px; outline: none; box-sizing: border-box;" onkeydown="if(event.key==='Enter'){event.preventDefault();checkUrlSafety();}">
+                <button type="button" onclick="checkUrlSafety()" style="background: #0f766e; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;">Check URL 🔍</button>
+            </div>
+        </div>
+
+        <div id="resultsSection" style="display: none; margin-top: 14px; max-height: 280px; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                <h4 style="font-size: 13px;">Classification Result:</h4>
                 <span id="resultPriorityBadge" class="badge">STANDARD</span>
             </div>
-            <div id="relayDirectives"></div>
 
-            <h4 style="font-size: 13px; color: #64748b; margin: 12px 0 6px 0;">Model Confidence Diagnostics (%):</h4>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin: 12px 0 6px 0; flex-wrap: wrap; gap: 6px;">
+                <h4 id="urlSafetyHeading" style="font-size: 13px; color: #64748b; margin: 0;">URL Safety Checker (%):</h4>
+                <span id="urlRiskBadge" class="badge" style="display: none; font-size: 11px;">Lower Risk</span>
+            </div>
             <div id="analysisGrid" class="grid"></div>
-        </div>
-    </div>
-</div>
-
-<!-- EDITABLE DRAFT MODAL FOR ASSISTANT -->
-<div id="editDraftModal" class="modal-overlay">
-    <div class="wizard-box" style="min-height: auto;">
-        <button class="close-btn" onclick="closeEditDraftModal()">&times;</button>
-        <h3 style="margin-bottom: 4px;">✏️ Refine Draft Before Dispatch</h3>
-        <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">Modify your automated response text below before triggering the 7-second Safety Undo queue.</p>
-        
-        <textarea id="refinedDraftText" style="height: 100px;"></textarea>
-        
-        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
-            <button onclick="closeEditDraftModal()" style="background: #64748b; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 13px;">Cancel</button>
-            <button onclick="stageEditedDraftWithUndo()" class="submit-btn" style="width: auto; padding: 10px 20px;">Stage with 7s Undo 🚀</button>
+            <div id="urlSafetyExplanation" style="display: none; margin-top: 8px; font-size: 12px; line-height: 1.45; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); background: #f8fafc; color: #334155;"></div>
         </div>
     </div>
 </div>
@@ -802,21 +720,7 @@
     </div>
 </div>
 
-<!-- 7-Second Safety Undo Pop-up Banner -->
-<div id="undoCard" class="undo-card">
-    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
-        <div>
-            <div style="font-weight: bold; font-size: 13px;">⏳ Sending in <span id="cooloffTimer">7</span>s...</div>
-            <div id="undoSnippet" style="font-size: 12px; color: #94a3b8; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></div>
-        </div>
-        <button id="undoBtn" class="undo-btn" onclick="triggerUndo()">UNDO</button>
-    </div>
-</div>
-
 <script>
-    let activeReplyId = null;
-    let countdownInterval = null;
-    let currentEditingText = "";
     let currentWizardStep = 0;
 
     let userPreferences = {
@@ -835,13 +739,13 @@
             desc: "Select the stage of action you prefer for your top priorities:",
             render: () => `
                 <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <label style="padding: 12px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; display: flex; gap: 10px; cursor: pointer;">
-                        <input type="radio" name="handlingStage" value="immediate" ${userPreferences.handling_stage === 'immediate' ? 'checked' : ''} style="margin-top: 3px;">
-                        <div><strong>Immediate Notification & Overlay Alert</strong><div style="font-size: 12px; color: #64748b;">Interrupts instantly with priority badges and popup alerts.</div></div>
+                    <label style="padding: 12px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; display: flex; gap: 10px; cursor: pointer; align-items: center;">
+                        <input type="radio" name="handlingStage" value="immediate" ${userPreferences.handling_stage === 'immediate' ? 'checked' : ''} style="margin: 0;">
+                        <span style="font-weight: 600; color: #1e293b;">Immediate Notification & Overlay Alert</span>
                     </label>
-                    <label style="padding: 12px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; display: flex; gap: 10px; cursor: pointer;">
-                        <input type="radio" name="handlingStage" value="staged" ${userPreferences.handling_stage === 'staged' ? 'checked' : ''} style="margin-top: 3px;">
-                        <div><strong>Staged Feed & Review Queue</strong><div style="font-size: 12px; color: #64748b;">Keeps them in your web dashboard feed ready for 7-second undo drafts.</div></div>
+                    <label style="padding: 12px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; display: flex; gap: 10px; cursor: pointer; align-items: center;">
+                        <input type="radio" name="handlingStage" value="staged" ${userPreferences.handling_stage === 'staged' ? 'checked' : ''} style="margin: 0;">
+                        <span style="font-weight: 600; color: #1e293b;">Staged Feed & Review Queue</span>
                     </label>
                 </div>
             `
@@ -871,29 +775,6 @@
         if (sidebar) sidebar.classList.remove('mobile-open');
         if (backdrop) backdrop.style.display = 'none';
     }
-
-    function toggleQuickMenu(event) {
-        if (event) event.stopPropagation();
-        const menu = document.getElementById('quickDropdownMenu');
-        if (menu) {
-            menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
-        }
-    }
-
-    function closeQuickMenu() {
-        const menu = document.getElementById('quickDropdownMenu');
-        if (menu) menu.style.display = 'none';
-    }
-
-    document.addEventListener('click', function(e) {
-        const menu = document.getElementById('quickDropdownMenu');
-        if (menu && menu.style.display === 'block') {
-            const wrapper = document.querySelector('.quick-dropdown-wrapper');
-            if (wrapper && !wrapper.contains(e.target)) {
-                menu.style.display = 'none';
-            }
-        }
-    });
 
     function toggleMobileSidebar() {
         toggleNavMenu();
@@ -970,23 +851,6 @@
             currentWizardStep--;
             renderWizardStep();
         }
-    }
-
-    function openEditDraftModal(text) {
-        currentEditingText = text;
-        document.getElementById('refinedDraftText').value = text;
-        document.getElementById('editDraftModal').style.display = 'flex';
-    }
-
-    function closeEditDraftModal() {
-        document.getElementById('editDraftModal').style.display = 'none';
-    }
-
-    function stageEditedDraftWithUndo() {
-        const finalEditedText = document.getElementById('refinedDraftText').value;
-        closeEditDraftModal();
-        closeAssistantModal();
-        stageDispatchWithUndo(finalEditedText);
     }
 
     async function loadSettings() {
@@ -1126,6 +990,14 @@
                 if (avatarEl && (data.full_name || data.username)) {
                     avatarEl.innerText = (data.full_name || data.username)[0].toUpperCase();
                 }
+                const sidebarAvatar = document.getElementById('avatarInitial');
+                if (sidebarAvatar && (data.full_name || data.username)) {
+                    sidebarAvatar.innerText = (data.full_name || data.username)[0].toUpperCase();
+                }
+                const sidebarName = document.querySelector('.user-info .user-name');
+                if (sidebarName && (data.full_name || data.username)) {
+                    sidebarName.innerText = data.full_name || data.username;
+                }
             }
         } catch (e) {
             console.error("Error loading profile:", e);
@@ -1164,6 +1036,10 @@
                 if (nameDisplay) nameDisplay.innerText = fullName;
                 const avatarEl = document.getElementById('profileAvatarLetter');
                 if (avatarEl && fullName) avatarEl.innerText = fullName[0].toUpperCase();
+                const sidebarAvatar = document.getElementById('avatarInitial');
+                if (sidebarAvatar && fullName) sidebarAvatar.innerText = fullName[0].toUpperCase();
+                const sidebarName = document.querySelector('.user-info .user-name');
+                if (sidebarName && fullName) sidebarName.innerText = fullName;
             } else {
                 if (statusEl) {
                     statusEl.style.display = 'block';
@@ -1880,35 +1756,35 @@
             loadMeetings();
             loadTasks();
 
-            const dirDiv = document.getElementById('relayDirectives');
-            dirDiv.innerHTML = '';
-            (data.relay_directives || []).forEach(item => {
-                const card = document.createElement('div');
-                card.className = 'directive-card';
-                card.style.borderLeft = `4px solid ${data.badge_color}`;
-                card.innerHTML = `<span>${item}</span><span style="font-size:11px; color:#2563eb;">Edit & Dispatch ➔</span>`;
-                
-                if (data.meeting_info && item.includes(data.meeting_info.platform)) {
-                    card.title = "Tap to open meeting";
-                    card.onclick = () => window.open(data.meeting_info.join_url, '_blank');
-                } else {
-                    card.title = "Tap to edit draft before staging";
-                    card.onclick = () => openEditDraftModal(item);
-                }
-                dirDiv.appendChild(card);
-            });
-
             const badge = document.getElementById('resultPriorityBadge');
             badge.innerText = data.priority;
             badge.style.backgroundColor = data.badge_color;
 
-            const grid = document.getElementById('analysisGrid');
-            grid.innerHTML = '';
-            for (const [key, val] of Object.entries(data.analysis || {})) {
-                const card = document.createElement('div');
-                card.className = 'tag-card';
-                card.innerHTML = `<span>${key}</span><span class="tag-value">${val.prediction} (${val.confidence}%)</span>`;
-                grid.appendChild(card);
+            if (data.url_safety) {
+                renderUrlSafetyResult(data.url_safety);
+                const urlInput = document.getElementById('urlSafetyInput');
+                if (urlInput && data.url_safety.url) {
+                    urlInput.value = data.url_safety.url;
+                }
+            } else {
+                const urlInput = document.getElementById('urlSafetyInput');
+                const manualUrl = urlInput ? urlInput.value.trim() : '';
+                if (manualUrl) {
+                    checkUrlSafety(manualUrl);
+                } else {
+                    const grid = document.getElementById('analysisGrid');
+                    if (grid) {
+                        grid.innerHTML = `
+                            <div class="tag-card" style="grid-column: 1 / -1; text-align: center; color: #64748b; padding: 10px;">
+                                <span>No link detected in message. Paste any URL above to check its safety before opening.</span>
+                            </div>
+                        `;
+                    }
+                    const urlRiskBadge = document.getElementById('urlRiskBadge');
+                    if (urlRiskBadge) urlRiskBadge.style.display = 'none';
+                    const expDiv = document.getElementById('urlSafetyExplanation');
+                    if (expDiv) expDiv.style.display = 'none';
+                }
             }
 
             document.getElementById('resultsSection').style.display = 'block';
@@ -1941,6 +1817,125 @@
             }
         } catch (e) {
             console.error('Error executing assistant directives:', e);
+        }
+    }
+
+    async function checkUrlSafety(urlToCheck) {
+        const inputField = document.getElementById('urlSafetyInput');
+        const targetUrl = (typeof urlToCheck === 'string' && urlToCheck.trim()) 
+            ? urlToCheck.trim() 
+            : (inputField ? inputField.value.trim() : '');
+
+        if (inputField && targetUrl) {
+            inputField.value = targetUrl;
+        }
+
+        const resultsSection = document.getElementById('resultsSection');
+        const grid = document.getElementById('analysisGrid');
+        const badge = document.getElementById('urlRiskBadge');
+        const explanationDiv = document.getElementById('urlSafetyExplanation');
+
+        if (!targetUrl) {
+            if (resultsSection) resultsSection.style.display = 'block';
+            renderUrlSafetyResult({
+                url: '',
+                safety_percentage: null,
+                risk_level: 'Inconclusive',
+                explanation: 'Inconclusive: No URL provided. Please paste a valid web link into the input field above to check its safety before opening.'
+            });
+            return;
+        }
+
+        if (resultsSection) resultsSection.style.display = 'block';
+        if (grid) {
+            grid.innerHTML = `
+                <div class="tag-card"><span>URL Safety Percentage</span><span class="tag-value" style="color:#0f766e;">Inspecting...</span></div>
+                <div class="tag-card"><span>Risk Level</span><span class="tag-value" style="color:#0f766e;">Analyzing</span></div>
+            `;
+        }
+        if (badge) {
+            badge.style.display = 'inline-block';
+            badge.innerText = 'Checking...';
+            badge.style.backgroundColor = '#0f766e';
+            badge.style.color = '#ffffff';
+        }
+        if (explanationDiv) explanationDiv.style.display = 'none';
+
+        try {
+            const resp = await fetch('/check_url_safety', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: targetUrl })
+            });
+            const res = await resp.json();
+            renderUrlSafetyResult(res);
+        } catch (err) {
+            console.error('URL safety check failed:', err);
+            renderUrlSafetyResult({
+                url: targetUrl,
+                safety_percentage: null,
+                risk_level: 'Inconclusive',
+                explanation: 'Inconclusive: Could not complete safety assessment due to a network connection error.'
+            });
+        }
+    }
+
+    function renderUrlSafetyResult(res) {
+        const resultsSection = document.getElementById('resultsSection');
+        const grid = document.getElementById('analysisGrid');
+        const badge = document.getElementById('urlRiskBadge');
+        const explanationDiv = document.getElementById('urlSafetyExplanation');
+
+        if (resultsSection) resultsSection.style.display = 'block';
+
+        const riskLevel = res.risk_level || 'Inconclusive';
+        const score = res.safety_percentage;
+        const scoreDisplay = (score !== null && score !== undefined) ? `${score}%` : '--';
+
+        let color = '#64748b'; // slate for Inconclusive
+        let borderTint = '#cbd5e1';
+        let bgTint = '#f8fafc';
+
+        if (riskLevel === 'Lower Risk') {
+            color = '#16a34a'; // green
+            borderTint = '#bbf7d0';
+            bgTint = '#f0fdf4';
+        } else if (riskLevel === 'Suspicious') {
+            color = '#d97706'; // amber
+            borderTint = '#fde68a';
+            bgTint = '#fffbeb';
+        } else if (riskLevel === 'High Risk') {
+            color = '#dc2626'; // red
+            borderTint = '#fecaca';
+            bgTint = '#fef2f2';
+        }
+
+        if (badge) {
+            badge.style.display = 'inline-block';
+            badge.innerText = riskLevel;
+            badge.style.backgroundColor = color;
+            badge.style.color = '#ffffff';
+        }
+
+        if (grid) {
+            grid.innerHTML = `
+                <div class="tag-card">
+                    <span>URL Safety Percentage</span>
+                    <span class="tag-value" style="color: ${color}; font-weight: 700;">${scoreDisplay}</span>
+                </div>
+                <div class="tag-card">
+                    <span>Risk Level</span>
+                    <span class="tag-value" style="color: ${color}; font-weight: 700;">${riskLevel}</span>
+                </div>
+            `;
+        }
+
+        if (explanationDiv) {
+            explanationDiv.style.display = 'block';
+            explanationDiv.style.borderColor = borderTint;
+            explanationDiv.style.background = bgTint;
+            explanationDiv.style.color = '#1e293b';
+            explanationDiv.innerHTML = `<strong>${escapeHtml(riskLevel)}:</strong> ${escapeHtml(res.explanation || 'No further details.')}`;
         }
     }
 
@@ -2003,51 +1998,64 @@
         } catch (e) { console.error(e); }
     }
 
-    async function stageDispatchWithUndo(text) {
-        clearInterval(countdownInterval);
-        const res = await fetch('/stage_reply', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reply_text: text })
-        });
-        const data = await res.json();
-        activeReplyId = data.reply_id;
-        
-        let secondsLeft = data.cooloff_seconds || 7;
-        const undoCard = document.getElementById('undoCard');
-        const timerSpan = document.getElementById('cooloffTimer');
-        const snippetSpan = document.getElementById('undoSnippet');
-        
-        timerSpan.innerText = secondsLeft;
-        snippetSpan.innerText = text;
-        undoCard.style.display = 'block';
+    async function changePassword() {
+        const currentPassword = document.getElementById('currentPasswordInput').value;
+        const newPassword = document.getElementById('newPasswordInput').value;
+        const confirmPassword = document.getElementById('confirmPasswordInput').value;
+        const statusEl = document.getElementById('passwordStatus');
 
-        countdownInterval = setInterval(async () => {
-            secondsLeft -= 1;
-            timerSpan.innerText = secondsLeft;
-            if (secondsLeft <= 0) {
-                clearInterval(countdownInterval);
-                undoCard.style.display = 'none';
-                await fetch('/dispatch_reply', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ reply_id: activeReplyId })
-                });
-            }
-        }, 1000);
-    }
+        if (!currentPassword || !newPassword) {
+            statusEl.style.display = 'block';
+            statusEl.style.background = '#fef2f2';
+            statusEl.style.color = '#ef4444';
+            statusEl.innerText = '❌ Please enter current and new password.';
+            return;
+        }
+        if (newPassword.length < 4) {
+            statusEl.style.display = 'block';
+            statusEl.style.background = '#fef2f2';
+            statusEl.style.color = '#ef4444';
+            statusEl.innerText = '❌ New password must be at least 4 characters long.';
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            statusEl.style.display = 'block';
+            statusEl.style.background = '#fef2f2';
+            statusEl.style.color = '#ef4444';
+            statusEl.innerText = '❌ New passwords do not match.';
+            return;
+        }
 
-    async function triggerUndo() {
-        clearInterval(countdownInterval);
-        document.getElementById('undoCard').style.display = 'none';
-        if (activeReplyId) {
-            await fetch('/cancel_reply', {
+        try {
+            const res = await fetch('/change_password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reply_id: activeReplyId })
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword,
+                    confirm_password: confirmPassword
+                })
             });
-            alert('🛡️ Dispatch successfully recalled! No message was sent.');
-            activeReplyId = null;
+            const data = await res.json();
+            statusEl.style.display = 'block';
+            if (res.ok && data.status === 'success') {
+                statusEl.style.background = '#ecfdf5';
+                statusEl.style.color = '#10b981';
+                statusEl.innerText = '✅ ' + (data.message || 'Password updated successfully.');
+                document.getElementById('currentPasswordInput').value = '';
+                document.getElementById('newPasswordInput').value = '';
+                document.getElementById('confirmPasswordInput').value = '';
+                setTimeout(() => { if (statusEl) statusEl.style.display = 'none'; }, 4000);
+            } else {
+                statusEl.style.background = '#fef2f2';
+                statusEl.style.color = '#ef4444';
+                statusEl.innerText = '❌ ' + (data.message || 'Failed to update password.');
+            }
+        } catch (e) {
+            statusEl.style.display = 'block';
+            statusEl.style.background = '#fef2f2';
+            statusEl.style.color = '#ef4444';
+            statusEl.innerText = '❌ Network error updating password.';
         }
     }
 
