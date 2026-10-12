@@ -534,34 +534,26 @@
 
 <!-- OPEN ASSISTANT MODAL (MULTI-VIEW WINDOW) -->
 <div id="assistantModal" class="modal-overlay">
-    <div class="wizard-box" style="min-height: auto;">
+    <div class="wizard-box" style="min-height: auto; max-width: 580px;">
         <button class="close-btn" onclick="closeAssistantModal()">&times;</button>
         <h3 style="margin-bottom: 4px;">💬 Assistant Control Console</h3>
-        <p style="font-size: 13px; color: #64748b; margin-bottom: 14px;">Infers intent, extracts action items, and auto-detects meetings and tasks.</p>
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">Inspect link safety before opening. Calculates local rule-based safety percentage and risk level.</p>
 
-        <textarea id="messageInput" placeholder="Type or paste incoming message to analyze..." style="height: 80px; margin-bottom: 10px;"></textarea>
-        <button class="submit-btn" onclick="processMessage()">Execute Assistant 🚀</button>
-
-        <div style="margin: 14px 0 6px 0; padding-top: 12px; border-top: 1px solid var(--border);">
-            <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px;">Check URL Before Opening:</label>
+        <div style="margin-bottom: 12px;">
+            <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px;">URL Safety Checker:</label>
             <div style="display: flex; gap: 8px;">
-                <input type="text" id="urlSafetyInput" placeholder="Paste link to check (e.g. https://meet.google.com/xyz)..." style="flex: 1; padding: 8px 12px; font-size: 13px; border: 1px solid var(--border); border-radius: 6px; outline: none; box-sizing: border-box;" onkeydown="if(event.key==='Enter'){event.preventDefault();checkUrlSafety();}">
-                <button type="button" onclick="checkUrlSafety()" style="background: #0f766e; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;">Check URL 🔍</button>
+                <input type="text" id="urlSafetyInput" placeholder="Paste link to check (e.g. https://meet.google.com/xyz)..." style="flex: 1; padding: 10px 12px; font-size: 13px; border: 1px solid var(--border); border-radius: 8px; outline: none; box-sizing: border-box;" onkeydown="if(event.key==='Enter'){event.preventDefault();checkUrlSafety();}">
+                <button type="button" class="submit-btn" onclick="checkUrlSafety()" style="margin: 0; width: auto; padding: 10px 18px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; background: #0f766e;">Check URL 🔍</button>
             </div>
         </div>
 
         <div id="resultsSection" style="display: none; margin-top: 14px; max-height: 280px; overflow-y: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
-                <h4 style="font-size: 13px;">Classification Result:</h4>
-                <span id="resultPriorityBadge" class="badge">STANDARD</span>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; align-items: center; margin: 12px 0 6px 0; flex-wrap: wrap; gap: 6px;">
-                <h4 id="urlSafetyHeading" style="font-size: 13px; color: #64748b; margin: 0;">URL Safety Checker (%):</h4>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin: 4px 0 8px 0; flex-wrap: wrap; gap: 6px;">
+                <h4 id="urlSafetyHeading" style="font-size: 13px; color: #64748b; margin: 0; font-weight: 600;">URL Safety Checker (%):</h4>
                 <span id="urlRiskBadge" class="badge" style="display: none; font-size: 11px;">Lower Risk</span>
             </div>
             <div id="analysisGrid" class="grid"></div>
-            <div id="urlSafetyExplanation" style="display: none; margin-top: 8px; font-size: 12px; line-height: 1.45; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); background: #f8fafc; color: #334155;"></div>
+            <div id="urlSafetyExplanation" style="display: none; margin-top: 10px; font-size: 12px; line-height: 1.5; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border); background: #f8fafc; color: #334155;"></div>
         </div>
     </div>
 </div>
@@ -1728,95 +1720,6 @@
             });
         } else {
             prompt('Copy meeting link:', url);
-        }
-    }
-
-    async function processMessage() {
-        const input = document.getElementById('messageInput').value;
-        const toneEl = document.getElementById('settingsToneSelect');
-        const persona = toneEl ? toneEl.value : 'casual';
-
-        if (!input.trim()) {
-            alert('Please enter a message to analyze.');
-            return;
-        }
-
-        try {
-            const response = await fetch('/analyze', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    message: input, 
-                    persona: persona, 
-                    thread_count: 1
-                })
-            });
-            const data = await response.json();
-
-            loadMeetings();
-            loadTasks();
-
-            const badge = document.getElementById('resultPriorityBadge');
-            badge.innerText = data.priority;
-            badge.style.backgroundColor = data.badge_color;
-
-            if (data.url_safety) {
-                renderUrlSafetyResult(data.url_safety);
-                const urlInput = document.getElementById('urlSafetyInput');
-                if (urlInput && data.url_safety.url) {
-                    urlInput.value = data.url_safety.url;
-                }
-            } else {
-                const urlInput = document.getElementById('urlSafetyInput');
-                const manualUrl = urlInput ? urlInput.value.trim() : '';
-                if (manualUrl) {
-                    checkUrlSafety(manualUrl);
-                } else {
-                    const grid = document.getElementById('analysisGrid');
-                    if (grid) {
-                        grid.innerHTML = `
-                            <div class="tag-card" style="grid-column: 1 / -1; text-align: center; color: #64748b; padding: 10px;">
-                                <span>No link detected in message. Paste any URL above to check its safety before opening.</span>
-                            </div>
-                        `;
-                    }
-                    const urlRiskBadge = document.getElementById('urlRiskBadge');
-                    if (urlRiskBadge) urlRiskBadge.style.display = 'none';
-                    const expDiv = document.getElementById('urlSafetyExplanation');
-                    if (expDiv) expDiv.style.display = 'none';
-                }
-            }
-
-            document.getElementById('resultsSection').style.display = 'block';
-
-            if (data.priority.includes('URGENT') || data.priority.includes('IMPORTANT') || data.meeting_info || data.deadline_info) {
-                const overviewFeed = document.getElementById('overviewFeed');
-                const newCard = document.createElement('div');
-                const isUrgent = data.priority.includes('URGENT');
-                const isImportant = data.priority.includes('IMPORTANT');
-                const isMeeting = !!data.meeting_info;
-                const cardType = isUrgent ? 'urgent' : (isImportant ? 'important' : (isMeeting ? 'meeting' : 'task'));
-
-                const localTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-                newCard.className = `feed-card ${cardType}`;
-                newCard.innerHTML = `
-                    <div class="feed-top">
-                        <span>Assistant Ingest • <small style="color: #64748b;">${localTime}</small></span>
-                        <span class="badge" style="background:${data.badge_color};">${data.priority}</span>
-                    </div>
-                    <p style="font-size: 0.85rem; color: #334155;">${escapeHtml(input)}</p>
-                    ${isMeeting ? `<div style="margin-top: 8px;"><a href="${escapeHtml(data.meeting_info.join_url)}" target="_blank" class="directive-card" style="margin:0; text-decoration:none; background:#2563eb; color:white; display:inline-block; padding:4px 10px;">Join ${escapeHtml(data.meeting_info.platform)} 🚀</a></div>` : ''}
-                `;
-                overviewFeed.prepend(newCard);
-
-                if (isUrgent) {
-                    const urgStat = document.getElementById('urgentStat');
-                    if (urgStat) urgStat.innerText = parseInt(urgStat.innerText || 0) + 1;
-                }
-            }
-        } catch (e) {
-            console.error('Error executing assistant directives:', e);
         }
     }
 

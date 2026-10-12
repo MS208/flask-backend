@@ -1005,13 +1005,19 @@ class TestComprehensiveRegression(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         html = res.data.decode('utf-8')
 
-        # Check URL input and check button
+        # Check Execute Assistant box is completely removed
+        self.assertNotIn('id="messageInput"', html, "messageInput textarea should be removed from console")
+        self.assertNotIn('Execute Assistant', html, "Execute Assistant button should be removed from console")
+
+        # Check URL input and check button are present at the top
         self.assertIn('id="urlSafetyInput"', html)
         self.assertIn('checkUrlSafety()', html)
-        # Check repurposed percentage header
+        # Verify exactly one URL safety input exists
+        self.assertEqual(html.count('id="urlSafetyInput"'), 1, "Only one URL checker should exist in the console")
+
+        # Check repurposed percentage header and grid
         self.assertIn('URL Safety Checker (%):', html)
         self.assertNotIn('Model Confidence Diagnostics (%):', html)
-        # Check reused analysis grid and badges
         self.assertIn('id="analysisGrid"', html)
         self.assertIn('id="urlRiskBadge"', html)
         self.assertIn('id="urlSafetyExplanation"', html)
