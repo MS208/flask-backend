@@ -432,21 +432,7 @@ def get_total_message_count(username):
     return row['count'] if row else 0
 
 def get_quarantined_messages(username):
-    uname = (username or 'admin').strip().lower()
-    rows = query_db("""
-        SELECT id, message, sentiment, urgency, priority, timestamp
-        FROM analysis_logs
-        WHERE LOWER(username) = ? AND (LOWER(priority) LIKE '%spam%' OR LOWER(priority) LIKE '%low%')
-        ORDER BY id DESC LIMIT 50
-    """, (uname,))
-    return [
-        {
-            'id': r['id'],
-            'message': r['message'],
-            'priority': r['priority'],
-            'timestamp': str(r.get('timestamp') or '')
-        } for r in rows
-    ]
+    return []
 
 # --- Meeting Database Operations ---
 

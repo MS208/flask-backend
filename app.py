@@ -869,7 +869,6 @@ def ingest_notification():
 
     directives = [m['directive'] for m in all_meetings]
     utc_now = datetime.now(timezone.utc).isoformat()
-    is_spam = ('spam' in priority.lower()) or (classification == 'Spam')
 
     alert_item = {
         'id': int(time.time() * 1000),
@@ -884,19 +883,14 @@ def ingest_notification():
         'meeting_url': saved_meetings[0]['meeting_url'] if saved_meetings else None,
         'meeting_platform': saved_meetings[0]['platform'] if saved_meetings else None,
         'task': saved_task,
-        'status_tag': "Quarantined" if is_spam else "Live",
+        'status_tag': "Live",
         'utc_timestamp': utc_now,
         'timestamp': time.strftime("%I:%M %p")
     }
 
-    if is_spam:
-        QUARANTINED_ALERTS.insert(0, alert_item)
-        if len(QUARANTINED_ALERTS) > 50:
-            QUARANTINED_ALERTS.pop()
-    else:
-        LIVE_FEED_ALERTS.insert(0, alert_item)
-        if len(LIVE_FEED_ALERTS) > 50:
-            LIVE_FEED_ALERTS.pop()
+    LIVE_FEED_ALERTS.insert(0, alert_item)
+    if len(LIVE_FEED_ALERTS) > 50:
+        LIVE_FEED_ALERTS.pop()
 
     log_analysis(
         username=username,
@@ -913,7 +907,7 @@ def ingest_notification():
         'priority': priority,
         'meetings_saved': len(saved_meetings),
         'task_saved': bool(saved_task),
-        'delivery_mode': 'Quarantine' if is_spam else 'Live'
+        'delivery_mode': 'Live'
     })
 
 @app.route('/get_feed', methods=['GET'])
@@ -934,11 +928,9 @@ def get_feed():
 
 @app.route('/get_quarantine', methods=['GET'])
 def get_quarantine_route():
-    username = resolve_username_or_default(session.get('username'))
-    db_quarantine = get_quarantined_messages(username)
     return jsonify({
-        'quarantine': QUARANTINED_ALERTS,
-        'db_quarantine': db_quarantine
+        'quarantine': [],
+        'db_quarantine': []
     })
 
 @app.route('/stage_reply', methods=['POST'])

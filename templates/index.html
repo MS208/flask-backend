@@ -502,14 +502,6 @@
                         <option value="staged">Staged Feed & Review Queue</option>
                     </select>
                 </div>
-                <div style="padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-size: 13px;">
-                    <div style="font-weight: 600; margin-bottom: 4px; color: #1e293b;">Spam & Low-Value Message Handling</div>
-                    <div style="font-size: 11px; color: #64748b; margin-bottom: 8px;">Automated behavior for junk and promotional notifications:</div>
-                    <select id="boundarySpamHandling" onchange="syncBoundaryPreferencesAndSave()" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: white;">
-                        <option value="delete">Automatically Delete / Filter in Background</option>
-                        <option value="archive">Keep in Off-Hours Deferred Queue</option>
-                    </select>
-                </div>
             </div>
             <button onclick="switchView('overviewView', document.querySelector('[data-view=\'overviewView\']'))" class="submit-btn" style="background: #0f172a; width: auto;">Save & Return to Overview</button>
         </div>
@@ -829,8 +821,7 @@
 
     let userPreferences = {
         custom_topics: '',
-        handling_stage: 'immediate',
-        spam_handling: 'delete'
+        handling_stage: 'immediate'
     };
 
     const wizardSteps = [
@@ -851,22 +842,6 @@
                     <label style="padding: 12px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; display: flex; gap: 10px; cursor: pointer;">
                         <input type="radio" name="handlingStage" value="staged" ${userPreferences.handling_stage === 'staged' ? 'checked' : ''} style="margin-top: 3px;">
                         <div><strong>Staged Feed & Review Queue</strong><div style="font-size: 12px; color: #64748b;">Keeps them in your web dashboard feed ready for 7-second undo drafts.</div></div>
-                    </label>
-                </div>
-            `
-        },
-        {
-            title: "What should the app do with unwanted spam or noise?",
-            desc: "Choose how background automation handles low-value messages:",
-            render: () => `
-                <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <label style="padding: 12px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; display: flex; gap: 10px; cursor: pointer;">
-                        <input type="radio" name="spamHandling" value="delete" ${userPreferences.spam_handling === 'delete' ? 'checked' : ''} style="margin-top: 3px;">
-                        <div><strong>Automatically Delete/Filter in Background</strong><div style="font-size: 12px; color: #64748b;">Silently discards spam and junk promotional messages so they never bother you.</div></div>
-                    </label>
-                    <label style="padding: 12px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; display: flex; gap: 10px; cursor: pointer;">
-                        <input type="radio" name="spamHandling" value="archive" ${userPreferences.spam_handling === 'archive' ? 'checked' : ''} style="margin-top: 3px;">
-                        <div><strong>Keep in Off-Hours Deferred Queue</strong><div style="font-size: 12px; color: #64748b;">Holds them safely for review later during personal downtime.</div></div>
                     </label>
                 </div>
             `
@@ -965,9 +940,6 @@
         } else if (currentWizardStep === 1) {
             const rad = document.querySelector('input[name="handlingStage"]:checked');
             if (rad) userPreferences.handling_stage = rad.value;
-        } else if (currentWizardStep === 2) {
-            const rad = document.querySelector('input[name="spamHandling"]:checked');
-            if (rad) userPreferences.spam_handling = rad.value;
         }
     }
 
@@ -1040,14 +1012,11 @@
             }
             if (data.custom_topics !== undefined) userPreferences.custom_topics = data.custom_topics || '';
             if (data.handling_stage) userPreferences.handling_stage = data.handling_stage;
-            if (data.spam_handling) userPreferences.spam_handling = data.spam_handling;
 
             const bTopics = document.getElementById('boundaryCustomTopics');
             if (bTopics) bTopics.value = userPreferences.custom_topics;
             const bStage = document.getElementById('boundaryHandlingStage');
             if (bStage) bStage.value = userPreferences.handling_stage;
-            const bSpam = document.getElementById('boundarySpamHandling');
-            if (bSpam) bSpam.value = userPreferences.spam_handling;
 
             if (!data.preferences_configured && !sessionStorage.getItem('skipped_preferences')) {
                 startQuestionnaire(0);
@@ -1060,8 +1029,6 @@
         if (bTopics) userPreferences.custom_topics = bTopics.value.trim();
         const bStage = document.getElementById('boundaryHandlingStage');
         if (bStage) userPreferences.handling_stage = bStage.value;
-        const bSpam = document.getElementById('boundarySpamHandling');
-        if (bSpam) userPreferences.spam_handling = bSpam.value;
         saveBoundarySettings();
     }
 
@@ -1094,8 +1061,6 @@
         if (bTopics) bTopics.value = userPreferences.custom_topics;
         const bStage = document.getElementById('boundaryHandlingStage');
         if (bStage) bStage.value = userPreferences.handling_stage;
-        const bSpam = document.getElementById('boundarySpamHandling');
-        if (bSpam) bSpam.value = userPreferences.spam_handling;
         await saveBoundarySettings();
         sessionStorage.setItem('skipped_preferences', 'false');
         closeQuestionnaire();
@@ -1121,8 +1086,6 @@
         if (bTopics) userPreferences.custom_topics = bTopics.value.trim();
         const bStage = document.getElementById('boundaryHandlingStage');
         if (bStage) userPreferences.handling_stage = bStage.value;
-        const bSpam = document.getElementById('boundarySpamHandling');
-        if (bSpam) userPreferences.spam_handling = bSpam.value;
 
         const payload = {
             active_hours_enabled: document.getElementById('activeHoursToggle').checked,
@@ -1132,8 +1095,7 @@
             dnd_bypass_enabled: dndBypass,
             persona: 'casual',
             custom_topics: userPreferences.custom_topics,
-            handling_stage: userPreferences.handling_stage,
-            spam_handling: userPreferences.spam_handling
+            handling_stage: userPreferences.handling_stage
         };
         try {
             await fetch('/update_settings', {

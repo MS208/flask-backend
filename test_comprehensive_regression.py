@@ -210,17 +210,17 @@ class TestComprehensiveRegression(unittest.TestCase):
             self.assertEqual(res['badge_color'], "#f59e0b")
             self.assertEqual(res['classification'], "Important")
 
-    def test_spam_quarantine_classification(self):
-        spam_msgs = [
+    def test_promotional_and_general_messages_are_standard(self):
+        promotional_msgs = [
             "Congratulations! You won $10,000 cash in the state lottery! Claim your prize now.",
             "Pre-approved loan for $50,000 with 0% interest, click here to claim funds immediately.",
             "Dear beneficiary, wire transfer of $5,000,000 waiting for your bank details."
         ]
-        for msg in spam_msgs:
-            res = classify_message_context(msg, 'Spam', 0.99)
-            self.assertEqual(res['priority'], "LOW (SPAM)", f"Expected Spam for: {msg}")
-            self.assertEqual(res['badge_color'], "#94a3b8")
-            self.assertEqual(res['classification'], "Spam")
+        for msg in promotional_msgs:
+            res = classify_message_context(msg)
+            self.assertEqual(res['priority'], "STANDARD", f"Expected Standard for: {msg}")
+            self.assertEqual(res['badge_color'], "#10b981")
+            self.assertEqual(res['classification'], "Standard")
 
     def test_standard_casual_chat(self):
         standard_msgs = [
@@ -363,7 +363,7 @@ class TestComprehensiveRegression(unittest.TestCase):
         self.assertGreaterEqual(feed_data['p1_count'], 1)
         self.assertGreaterEqual(feed_data['total_read'], 1)
 
-    def test_ingest_spam_to_quarantine(self):
+    def test_ingest_promotional_notification_to_live_feed(self):
         payload = {
             "app_source": "SMS",
             "sender": "1800-PRIZE",
@@ -373,14 +373,14 @@ class TestComprehensiveRegression(unittest.TestCase):
         res = self.client.post('/ingest_notification', data=json.dumps(payload), content_type='application/json')
         self.assertEqual(res.status_code, 200)
         data = res.get_json()
-        self.assertEqual(data['classification'], "Spam")
-        self.assertEqual(data['delivery_mode'], "Quarantine")
+        self.assertEqual(data['classification'], "Standard")
+        self.assertEqual(data['delivery_mode'], "Live")
 
         # Check /get_quarantine
         q_res = self.client.get('/get_quarantine')
         self.assertEqual(q_res.status_code, 200)
         q_data = q_res.get_json()
-        self.assertGreaterEqual(len(q_data['quarantine']), 1)
+        self.assertEqual(len(q_data['quarantine']), 0)
 
     # ==========================================
     # 5. SETTINGS ENDPOINTS & PERSISTENCE

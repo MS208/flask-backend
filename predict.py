@@ -9,7 +9,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Load trained classification models
 sentiment_model = joblib.load(os.path.join(BASE_DIR, 'models', 'sentiment_model.pkl'))
-spam_model = joblib.load(os.path.join(BASE_DIR, 'models', 'spam_model.pkl'))
 urgency_model = joblib.load(os.path.join(BASE_DIR, 'models', 'urgency_model.pkl'))
 tone_model = joblib.load(os.path.join(BASE_DIR, 'models', 'tone_model.pkl'))
 
@@ -70,15 +69,24 @@ def analyze_message_intent(text):
 
     return "INTENT_DECLARATIVE"
 
-def generate_personalized_directives(text, persona, sentiment, spam, urgency, tone, thread_count=1):
+def generate_personalized_directives(text, persona, sentiment, *args, **kwargs):
     directives = []
+
+    if len(args) == 4:
+        # legacy: spam, urgency, tone, thread_count
+        spam, urgency, tone, thread_count = args
+    elif len(args) == 3:
+        urgency, tone, thread_count = args
+    elif len(args) == 2:
+        urgency, tone = args
+        thread_count = kwargs.get('thread_count', 1)
+    else:
+        urgency = kwargs.get('urgency', 'Low')
+        tone = kwargs.get('tone', 'neutral')
+        thread_count = kwargs.get('thread_count', 1)
 
     if int(thread_count) >= 4:
         directives.append("📞 Tap to Call (4+ rapid turns detected)")
-
-    if spam == "Spam":
-        directives.append("🚫 Mute & Archive Silently")
-        return directives
 
     if urgency == "High" or text.isupper():
         if persona == "formal":
@@ -157,41 +165,15 @@ def generate_personalized_directives(text, persona, sentiment, spam, urgency, to
             unique.append(polished)
     return unique[:4]
 
-def classify_message_context(message_text, spam_model_pred="Legitimate", spam_conf=85.0):
+def classify_message_context(message_text, *args, **kwargs):
     text_lower = (message_text or "").lower().strip()
     # Normalize extra repeated letters (e.g. 'heeeelllp' -> 'help', 'urgennnnt' -> 'urgent', 'soooos' -> 'sos')
     normalized_text = re.sub(r'(.)\1{2,}', r'\1', text_lower)
     words = set(re.findall(r'\b\w+\b', normalized_text))
 
-    # 1. SPAM DETECTION (Confirmed deceptive / fraudulent / unwanted marketing)
     has_meeting = any(p in normalized_text for p in ["meet.google.com", "zoom.us", "teams.microsoft.com", "webex.com", "skype.com", "jit.si"])
 
-    is_spam = False
-    if not has_meeting:
-        scam_patterns = [
-            r'\b(won|winner|lottery|jackpot|cash prize|claim your prize)\b',
-            r'\b(pre-approved|guaranteed loan|no credit check)\b',
-            r'\b(crypto|bitcoin|investment)\b.*\b(guaranteed return|500%|passive income|double your money)\b',
-            r'\b(urgent wire|inheritance|foreign prince|beneficiary)\b',
-            r'\b(viagra|cialis|hot singles|casino bonus|free spins)\b',
-            r'\b(your account has been suspended|account locked).*verify.*(password|credentials|ssn|click here)\b'
-        ]
-        for pat in scam_patterns:
-            if re.search(pat, normalized_text):
-                is_spam = True
-                break
-        if not is_spam and spam_model_pred == "Spam" and spam_conf >= 90.0:
-            is_spam = True
-
-    if is_spam:
-        return {
-            "classification": "Spam",
-            "priority": "LOW (SPAM)",
-            "urgency": "Low",
-            "badge_color": "#94a3b8"
-        }
-
-    # 2. P1 URGENT — WORD-FIRST DETECTION (Life safety / Immediate threat / Genuine emergencies / P1)
+    # 1. P1 URGENT — WORD-FIRST DETECTION (Life safety / Immediate threat / Genuine emergencies / P1)
     # Check trivial/negation phrases first
     is_negated_or_trivial = any(neg in normalized_text for neg in [
         "not urgent", "not an emergency", "no emergency", "no rush", "no hurry",
@@ -297,9 +279,10 @@ def classify_message_context(message_text, spam_model_pred="Legitimate", spam_co
                     "approve", "approved", "finalize", "feedback", "status", "update"]
     time_terms = ["today", "tomorrow", "tonight", "friday", "monday", "eod", "asap", "by ", "pm", "am"]
 
-    has_work_term = any(w in normalized_text for w in work_terms)
-    has_action_term = any(w in normalized_text for w in action_terms)
-    has_time_term = any(t in normalized_text for t in time_terms)
+    has_work_term = any((w in words if ' ' not in w else w in normalized_text) for w in work_terms)
+    has_action_term = any((w in words if ' ' not in w else w in normalized_text) for w in action_terms)
+    time_words = {"today", "tomorrow", "tonight", "friday", "monday", "eod", "asap", "am", "pm"}
+    has_time_term = bool(words.intersection(time_words)) or bool(re.search(r'\b(by\s+(?:eod|cop|today|tomorrow|monday|friday|\d+)|at\s+\d+)\b', normalized_text))
 
     is_work_important = (has_work_term and has_action_term) or (has_work_term and has_time_term)
     has_work_importance_words = bool(words.intersection({"important", "deadline", "pending", "required"})) and bool(words.intersection({"project", "task", "doc", "report", "pr", "review", "eod", "client", "file", "contract"}))
@@ -318,7 +301,7 @@ def classify_message_context(message_text, spam_model_pred="Legitimate", spam_co
             "badge_color": "#f59e0b"
         }
 
-    # 4. STANDARD (Normal conversations / greetings / routine chat / domestic chatter)
+    # 3. STANDARD (Normal conversations / greetings / routine chat / domestic chatter)
     return {
         "classification": "Standard",
         "priority": "STANDARD",
@@ -328,22 +311,17 @@ def classify_message_context(message_text, spam_model_pred="Legitimate", spam_co
 
 def analyze_message(message_text, persona="casual", thread_count=1):
     sentiment_pred, sentiment_conf = predict_with_confidence(sentiment_model, message_text)
-    spam_pred, spam_conf = predict_with_confidence(spam_model, message_text)
     urgency_pred, urgency_conf = predict_with_confidence(urgency_model, message_text)
     tone_pred, tone_conf = predict_with_confidence(tone_model, message_text)
 
-    # Apply contextual triage classification
-    triage = classify_message_context(message_text, spam_pred, spam_conf)
+    # Apply contextual triage classification (P1 Urgent, P2 Important, Standard)
+    triage = classify_message_context(message_text)
     
     priority = triage["priority"]
     badge_color = triage["badge_color"]
     urgency_level = triage["urgency"]
     
-    if triage["classification"] == "Spam":
-        spam_pred = "Spam"
-        spam_conf = max(spam_conf, 95.0)
-        suggested_action = ("Quarantine & Filter", 95.0)
-    elif triage["classification"] == "Urgent":
+    if triage["classification"] == "Urgent":
         urgency_pred = "High"
         urgency_conf = max(urgency_conf, 96.0)
         suggested_action = ("Immediate Escalation", 96.0)
@@ -357,14 +335,14 @@ def analyze_message(message_text, persona="casual", thread_count=1):
         suggested_action = ("Standard Feed", 88.0)
 
     directives = generate_personalized_directives(
-        message_text, persona, sentiment_pred, spam_pred, urgency_pred, tone_pred, thread_count
+        message_text, persona, sentiment_pred, urgency=urgency_pred, tone=tone_pred, thread_count=thread_count
     )
 
     deadline_data = extract_deadline_and_alert(message_text)
 
     return {
         "Sentiment": (sentiment_pred, sentiment_conf),
-        "Message Type": ("Spam" if spam_pred == "Spam" else "Legitimate", spam_conf),
+        "Message Type": ("Standard", 95.0),
         "Urgency": (urgency_pred, urgency_conf),
         "Tone": (tone_pred, tone_conf),
         "Suggested Action": suggested_action,
