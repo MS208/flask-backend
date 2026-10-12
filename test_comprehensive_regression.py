@@ -11,7 +11,8 @@ from predict import classify_message_context
 from app import extract_all_meeting_links, extract_meeting_links, extract_task_from_message
 from database import (
     init_db, get_db, add_meeting, get_meetings_for_user, update_meeting, delete_meeting,
-    add_task, get_tasks_for_user, update_task, delete_task, update_task_status,
+    update_meeting_status, add_task, get_tasks_for_user, update_task, delete_task,
+    update_task_status, get_upcoming_reminders,
     log_analysis, get_p1_alert_count, get_total_message_count, get_quarantined_messages
 )
 import app as flask_app_module
@@ -85,12 +86,116 @@ class TestComprehensiveRegression(unittest.TestCase):
         non_emergencies = [
             "Can you help me with this homework assignment tonight?",
             "Please call me when you have a free minute.",
-            "Urgent: remember to buy milk on your way home!",
+            "Not urgent: remember to buy milk on your way home!",
             "Help me choose which shirt to wear to dinner."
         ]
         for msg in non_emergencies:
             res = classify_message_context(msg, 'Ham', 0.95)
             self.assertNotEqual(res['priority'], "P1 - URGENT", f"Should NOT be P1: {msg}")
+
+    def test_word_first_p1_urgent_detection(self):
+        # Test individual words, distress cries, capitalization, spelling variations, and longer messages
+        p1_test_cases = [
+            "Help",
+            "HELP!",
+            "hlp",
+            "I need help",
+            "Need help",
+            "SOS",
+            "s.o.s",
+            "URGENT",
+            "Urgent: please reply immediately",
+            "Accident on highway",
+            "He is bleeding",
+            "Trapped inside the room",
+            "Danger, please stay back",
+            "Unable to breathe, calling an ambulance",
+            "Car crash near the signal",
+            "Building is on fire",
+            "Server down, critical outage",
+            "Help me, someone is hurt"
+        ]
+        for msg in p1_test_cases:
+            res = classify_message_context(msg, 'Ham', 0.95)
+            self.assertEqual(res['priority'], "P1 - URGENT", f"Expected P1 for: {msg}")
+            self.assertEqual(res['badge_color'], "#ef4444")
+            self.assertEqual(res['classification'], "Urgent")
+
+    def test_p1_overrides_p2_conflicting_signals(self):
+        # When both P1 (emergency/urgent) and P2 (meeting/deadline/review) appear, P1 takes absolute priority
+        conflicting_cases = [
+            "Urgent: review the contract, there was an accident",
+            "I need help with this emergency before the meeting",
+            "SOS! Deadline tomorrow but server down in prod",
+            "Help! Check the status of the injured driver"
+        ]
+        for msg in conflicting_cases:
+            res = classify_message_context(msg, 'Ham', 0.95)
+            self.assertEqual(res['priority'], "P1 - URGENT", f"Expected P1 override for: {msg}")
+
+    def test_contextual_p2_and_standard_differentiation(self):
+        # 'Need to talk' and 'u need to see this' are P2
+        p2_cases = [
+            "Need to talk",
+            "We need to talk",
+            "u need to see this",
+            "you need to check this",
+            "Please confirm your attendance",
+            "Remember to submit your timesheet",
+            "Action required: sign document"
+        ]
+        for msg in p2_cases:
+            res = classify_message_context(msg, 'Ham', 0.95)
+            self.assertEqual(res['priority'], "P2 - IMPORTANT", f"Expected P2 for: {msg}")
+
+        # Ordinary everyday conversation should be STANDARD (silence, shade only)
+        standard_cases = [
+            "I need a coffee",
+            "I need some sleep",
+            "Call me when you get free",
+            "Did you check the score?",
+            "Hey how was your day?",
+            "Help me buy groceries",
+            "Help me pick an outfit",
+            "Not urgent, just checking in",
+            "Coffee emergency haha"
+        ]
+        for msg in standard_cases:
+            res = classify_message_context(msg, 'Ham', 0.95)
+            self.assertEqual(res['priority'], "STANDARD", f"Expected STANDARD for: {msg}")
+            self.assertEqual(res['badge_color'], "#10b981")
+            self.assertEqual(res['classification'], "Standard")
+
+    def test_ingest_notification_end_to_end_p1_classification(self):
+        # Test full API pipeline: /ingest_notification with 'Help' and 'I need help'
+        res1 = self.client.post('/ingest_notification', json={
+            'app_source': 'WhatsApp',
+            'sender': 'Alice',
+            'message': 'Help',
+            'username': 'admin'
+        })
+        self.assertEqual(res1.status_code, 200)
+        feed1 = self.client.get('/get_feed')
+        self.assertEqual(feed1.status_code, 200)
+        items1 = feed1.get_json()['feed']
+        help_alert = next((a for a in items1 if a['message'] == 'Help'), None)
+        self.assertIsNotNone(help_alert)
+        self.assertEqual(help_alert['priority'], "P1 - URGENT")
+        self.assertEqual(help_alert['badge_color'], "#ef4444")
+
+        res2 = self.client.post('/ingest_notification', json={
+            'app_source': 'SMS',
+            'sender': 'Bob',
+            'message': 'I need help',
+            'username': 'admin'
+        })
+        self.assertEqual(res2.status_code, 200)
+        feed2 = self.client.get('/get_feed')
+        items2 = feed2.get_json()['feed']
+        need_help_alert = next((a for a in items2 if a['message'] == 'I need help'), None)
+        self.assertIsNotNone(need_help_alert)
+        self.assertEqual(need_help_alert['priority'], "P1 - URGENT")
+        self.assertEqual(need_help_alert['badge_color'], "#ef4444")
 
     def test_p2_important_work_and_meetings(self):
         important_msgs = [
@@ -535,6 +640,228 @@ class TestComprehensiveRegression(unittest.TestCase):
         # 5. Missing or invalid ID returns 400
         res_bad = self.client.post('/delete_task', data=json.dumps({}), content_type='application/json')
         self.assertEqual(res_bad.status_code, 400)
+
+    # ==========================================
+    # 8. MEETING & TASK LINKAGE, BI-DIRECTIONAL SYNC & DEDUPLICATION
+    # ==========================================
+    def test_meeting_auto_generates_linked_upcoming_task(self):
+        user = "test_link_user"
+        m_id = add_meeting(
+            username=user,
+            platform="Google Meet",
+            meeting_url="https://meet.google.com/link-sync-test",
+            scheduled_time="2026-10-25 15:00",
+            title="Q3 Strategy Review",
+            meeting_date="2026-10-25",
+            start_time="15:00",
+            reminder_offset=15
+        )
+        self.assertIsNotNone(m_id)
+
+        # Verify meeting has linked_task_id
+        meetings = get_meetings_for_user(user)
+        meeting = next((m for m in meetings if m['id'] == m_id), None)
+        self.assertIsNotNone(meeting)
+        linked_tid = meeting.get('linked_task_id')
+        self.assertIsNotNone(linked_tid)
+
+        # Verify task exists in upcoming tasks with matching fields
+        tasks = get_tasks_for_user(user)
+        task = next((t for t in tasks if t['id'] == linked_tid), None)
+        self.assertIsNotNone(task)
+        self.assertEqual(task['task_title'], "Q3 Strategy Review")
+        self.assertEqual(task['due_date'], "2026-10-25")
+        self.assertEqual(task['due_time'], "15:00")
+        self.assertEqual(task['status'], "Pending")
+        self.assertEqual(task['linked_meeting_id'], m_id)
+
+        # Clean up
+        delete_meeting(m_id, user)
+
+    def test_update_meeting_syncs_to_linked_task(self):
+        user = "test_link_update_user"
+        m_id = add_meeting(
+            username=user,
+            platform="Zoom",
+            meeting_url="https://zoom.us/j/99887766",
+            scheduled_time="2026-10-26 10:00",
+            title="Design Sync",
+            meeting_date="2026-10-26",
+            start_time="10:00",
+            reminder_offset=30
+        )
+        meetings = get_meetings_for_user(user)
+        m = next(m for m in meetings if m['id'] == m_id)
+        linked_tid = m['linked_task_id']
+
+        # Update meeting details
+        update_meeting(
+            meeting_id=m_id,
+            username=user,
+            platform="Zoom",
+            meeting_url="https://zoom.us/j/99887766",
+            scheduled_time="2026-10-26 11:30",
+            title="Updated Design Sync",
+            meeting_date="2026-10-26",
+            start_time="11:30",
+            reminder_offset=10
+        )
+
+        tasks = get_tasks_for_user(user)
+        task = next(t for t in tasks if t['id'] == linked_tid)
+        self.assertEqual(task['task_title'], "Updated Design Sync")
+        self.assertEqual(task['due_time'], "11:30")
+        self.assertEqual(task['reminder_offset'], 10)
+
+        # Clean up
+        delete_meeting(m_id, user)
+
+    def test_bidirectional_completion_status_sync(self):
+        user = "test_sync_status_user"
+        m_id = add_meeting(
+            username=user,
+            platform="Teams",
+            meeting_url="https://teams.microsoft.com/l/meetup-join/123",
+            title="All Hands",
+            meeting_date="2026-10-27",
+            start_time="09:00"
+        )
+        m = next(m for m in get_meetings_for_user(user) if m['id'] == m_id)
+        t_id = m['linked_task_id']
+
+        # 1. Complete meeting -> linked task should become Completed
+        update_meeting_status(m_id, user, "Completed")
+        m_after = next(m for m in get_meetings_for_user(user) if m['id'] == m_id)
+        t_after = next(t for t in get_tasks_for_user(user) if t['id'] == t_id)
+        self.assertEqual(m_after['status'], "Completed")
+        self.assertEqual(t_after['status'], "Completed")
+
+        # 2. Reopen task -> linked meeting should become Scheduled
+        update_task_status(t_id, user, "Pending")
+        m_reopened = next(m for m in get_meetings_for_user(user) if m['id'] == m_id)
+        t_reopened = next(t for t in get_tasks_for_user(user) if t['id'] == t_id)
+        self.assertEqual(m_reopened['status'], "Scheduled")
+        self.assertEqual(t_reopened['status'], "Pending")
+
+        # Clean up
+        delete_meeting(m_id, user)
+
+    def test_deleting_meeting_removes_linked_task(self):
+        user = "test_del_link_user"
+        m_id = add_meeting(
+            username=user,
+            platform="Google Meet",
+            meeting_url="https://meet.google.com/del-cascade-test",
+            title="Temporary Meeting"
+        )
+        m = next(m for m in get_meetings_for_user(user) if m['id'] == m_id)
+        t_id = m['linked_task_id']
+
+        # Delete meeting
+        delete_meeting(m_id, user)
+
+        # Both meeting and linked task must be gone
+        meetings = [m['id'] for m in get_meetings_for_user(user)]
+        tasks = [t['id'] for t in get_tasks_for_user(user)]
+        self.assertNotIn(m_id, meetings)
+        self.assertNotIn(t_id, tasks)
+
+    def test_deleting_linked_task_preserves_original_meeting(self):
+        user = "test_del_task_only_user"
+        m_id = add_meeting(
+            username=user,
+            platform="Google Meet",
+            meeting_url="https://meet.google.com/del-task-only",
+            title="Preserved Meeting"
+        )
+        m = next(m for m in get_meetings_for_user(user) if m['id'] == m_id)
+        t_id = m['linked_task_id']
+
+        # Delete task only
+        delete_task(t_id, user)
+
+        # Task should be gone, but meeting must remain with linked_task_id cleared
+        tasks = [t['id'] for t in get_tasks_for_user(user)]
+        self.assertNotIn(t_id, tasks)
+
+        meetings = get_meetings_for_user(user)
+        m_still_there = next((m for m in meetings if m['id'] == m_id), None)
+        self.assertIsNotNone(m_still_there)
+        self.assertIsNone(m_still_there.get('linked_task_id'))
+
+        # Clean up
+        delete_meeting(m_id, user)
+
+    def test_upcoming_reminders_deduplication_and_completion_exclusion(self):
+        user = "test_reminders_dedup_user"
+        # Create a meeting with reminder 60 minutes in future
+        future_dt = datetime.now() + timedelta(minutes=60)
+        mtg_time = future_dt.strftime("%H:%M")
+        mtg_date = future_dt.strftime("%Y-%m-%d")
+        m_id = add_meeting(
+            username=user,
+            platform="Google Meet",
+            meeting_url="https://meet.google.com/alarm-test-1",
+            title="Alarm Dedup Meeting",
+            meeting_date=mtg_date,
+            start_time=mtg_time,
+            reminder_offset=15
+        )
+
+        reminders_data = get_upcoming_reminders(user)
+        meetings = reminders_data.get('meetings', [])
+        tasks = reminders_data.get('tasks', [])
+
+        # Should have meeting alarm
+        meeting_reminders = [r for r in meetings if r.get('id') == m_id]
+        self.assertEqual(len(meeting_reminders), 1, "Meeting reminder should be present")
+
+        # Auto-generated linked task should NOT produce a duplicate alarm in tasks
+        linked_tasks = [t for t in tasks if t.get('task_title') == 'Alarm Dedup Meeting']
+        self.assertEqual(len(linked_tasks), 0, "Linked task duplicate reminder must be suppressed")
+
+        # Now mark meeting as Completed
+        update_meeting_status(m_id, user, "Completed")
+        reminders_after_complete = get_upcoming_reminders(user)
+        meetings_after = [r for r in reminders_after_complete.get('meetings', []) if r.get('id') == m_id]
+        self.assertEqual(len(meetings_after), 0, "Completed items must be excluded from active reminders")
+
+        # Clean up
+        delete_meeting(m_id, user)
+
+    # ==========================================
+    # 9. TONE & BOUNDARIES PERSISTENCE TESTS
+    # ==========================================
+    def test_tone_and_boundaries_persistence(self):
+        with self.client.session_transaction() as sess:
+            sess['logged_in'] = True
+            sess['username'] = 'admin'
+
+        payload = {
+            'active_hours_enabled': 1,
+            'work_start_time': '08:30',
+            'work_end_time': '18:15',
+            'work_mode_enabled': 1,
+            'dnd_bypass_enabled': 1,
+            'persona': 'professional',
+            'custom_topics': 'Server Outage, Client Pitch, Budget Approval',
+            'handling_stage': 'immediate',
+            'spam_handling': 'digest'
+        }
+        res = self.client.post('/update_settings', data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(res.status_code, 200)
+
+        # Verify via GET /get_settings
+        res_get = self.client.get('/get_settings')
+        self.assertEqual(res_get.status_code, 200)
+        data = res_get.get_json()
+        self.assertEqual(data.get('work_start_time'), '08:30')
+        self.assertEqual(data.get('work_end_time'), '18:15')
+        self.assertEqual(data.get('work_mode_enabled'), 1)
+        self.assertEqual(data.get('dnd_bypass_enabled'), 1)
+        self.assertEqual(data.get('custom_topics'), 'Server Outage, Client Pitch, Budget Approval')
+        self.assertEqual(data.get('handling_stage'), 'immediate')
+        self.assertEqual(data.get('spam_handling'), 'digest')
 
 if __name__ == '__main__':
     unittest.main()

@@ -412,12 +412,19 @@
         <div class="content-card">
             <div class="card-header-bar">
                 <div>
-                    <h3 style="margin-bottom: 4px;">📹 Categorized Meetings</h3>
+                    <h3 style="margin-bottom: 4px;">Categorized Meetings</h3>
                     <p style="font-size: 13px; color: #64748b;">1-tap join, link management, and persistent lead alerts.</p>
                 </div>
-                <button onclick="openMeetingModal()" class="submit-btn" style="width: auto; padding: 8px 16px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
-                    <span>➕</span> Add Meeting Link
-                </button>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <div style="display: flex; background: #f1f5f9; border: 1px solid var(--border); border-radius: 8px; padding: 2px;">
+                        <button id="meetingFilterActive" onclick="setMeetingFilter('active')" style="background: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--primary);">Active</button>
+                        <button id="meetingFilterAll" onclick="setMeetingFilter('all')" style="background: transparent; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: #64748b;">All</button>
+                        <button id="meetingFilterCompleted" onclick="setMeetingFilter('completed')" style="background: transparent; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: #64748b;">Completed</button>
+                    </div>
+                    <button onclick="openMeetingModal()" class="submit-btn" style="width: auto; padding: 8px 16px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                        Add Meeting Link
+                    </button>
+                </div>
             </div>
             
             <div id="meetingAlertBox" style="display: none; padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; font-weight: 500;"></div>
@@ -431,7 +438,7 @@
         <div class="content-card">
             <div class="card-header-bar">
                 <div>
-                    <h3 style="margin-bottom: 4px;">📋 Tracked Deliverables</h3>
+                    <h3 style="margin-bottom: 4px;">Tracked Deliverables</h3>
                     <p style="font-size: 13px; color: #64748b;">Manage commitments, deadlines, and buffer alerts in persistent memory.</p>
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
@@ -441,7 +448,7 @@
                         <button id="taskFilterCompleted" onclick="setTaskFilter('completed')" style="background: transparent; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: #64748b;">Completed</button>
                     </div>
                     <button onclick="openTaskModal()" class="submit-btn" style="width: auto; padding: 8px 16px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
-                        <span>➕</span> Add Task
+                        Add Task
                     </button>
                 </div>
             </div>
@@ -455,16 +462,16 @@
     <!-- TONE & BOUNDARIES FULL-SCREEN VIEW -->
     <div id="settingsView" class="app-view">
         <div class="content-card">
-            <h3 style="margin-bottom: 4px;">⚙️ Tone & Operational Boundaries</h3>
-            <p style="font-size: 13px; color: #64748b; margin-bottom: 24px;">Configure your custom working window and automated behaviors.</p>
+            <h3 style="margin-bottom: 4px;">Tone & Operational Boundaries</h3>
+            <p style="font-size: 13px; color: #64748b; margin-bottom: 24px;">Configure your custom working window, priority filters, and automated behaviors.</p>
 
             <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; max-width: 600px;">
                 <label style="display: flex; justify-content: space-between; align-items: center; padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-weight: 600; font-size: 13px;">
-                    <span>🕒 Enable Active Working Hours Window</span>
+                    <span>Enable Active Working Hours Window</span>
                     <input type="checkbox" id="activeHoursToggle" onchange="saveBoundarySettings()" style="width: 18px; height: 18px;">
                 </label>
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-size: 13px; font-weight: 600; flex-wrap: wrap; gap: 10px;">
-                    <span>⏰ Working Hours Window:</span>
+                    <span>Working Hours Window:</span>
                     <div style="display: flex; gap: 8px; align-items: center;">
                         <input type="time" id="workStartTime" value="09:00" onchange="saveBoundarySettings()" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px;">
                         <span>to</span>
@@ -473,27 +480,36 @@
                 </div>
                 <label style="display: flex; justify-content: space-between; align-items: center; padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-weight: 600; font-size: 13px;">
                     <div>
-                        <span>💼 Work Mode (Assistance & Categorization)</span>
+                        <span>Work Mode (Assistance & Categorization)</span>
                         <div style="font-size: 11px; color: #64748b; font-weight: 400; margin-top: 2px;">Focus on important work items and quiet casual chats during work hours.</div>
                     </div>
                     <input type="checkbox" id="workModeToggle" onchange="saveBoundarySettings()" style="width: 18px; height: 18px;">
                 </label>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-size: 13px; font-weight: 600; flex-wrap: wrap; gap: 10px;">
-                    <div>
-                        <span>🎭 Assistant Tone & Persona:</span>
-                        <div style="font-size: 11px; color: #64748b; font-weight: 400; margin-top: 2px;">Default tone for suggestions and draft assistance.</div>
-                    </div>
-                    <select id="settingsToneSelect" onchange="syncToneAndSave(this.value)" style="padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: white;">
-                        <option value="casual">Casual & Friendly</option>
-                        <option value="formal">Formal & Professional</option>
-                        <option value="short">Short & Direct</option>
-                        <option value="minimal">Minimalist</option>
-                    </select>
-                </div>
                 <label style="display: flex; justify-content: space-between; align-items: center; padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-weight: 600; font-size: 13px;">
-                    <span>🚨 Allow P1 emergency alerts in Silent mode (DND Override)</span>
+                    <span>Allow P1 emergency alerts in Silent mode (DND Override)</span>
                     <input type="checkbox" id="dndBypassToggle" onchange="saveBoundarySettings()" style="width: 18px; height: 18px;">
                 </label>
+                <div style="padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-size: 13px;">
+                    <div style="font-weight: 600; margin-bottom: 4px; color: #1e293b;">Custom Priority Topics & Keywords</div>
+                    <div style="font-size: 11px; color: #64748b; margin-bottom: 8px;">Prioritize messages matching these topics (comma-separated):</div>
+                    <input type="text" id="boundaryCustomTopics" placeholder="e.g. project deadlines, bank OTP, family, urgent" onchange="syncBoundaryPreferencesAndSave()" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: white;">
+                </div>
+                <div style="padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-size: 13px;">
+                    <div style="font-weight: 600; margin-bottom: 4px; color: #1e293b;">High-Priority Message Handling Stage</div>
+                    <div style="font-size: 11px; color: #64748b; margin-bottom: 8px;">Choose delivery action for your top priority alerts:</div>
+                    <select id="boundaryHandlingStage" onchange="syncBoundaryPreferencesAndSave()" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: white;">
+                        <option value="immediate">Immediate Notification & Overlay Alert</option>
+                        <option value="staged">Staged Feed & Review Queue</option>
+                    </select>
+                </div>
+                <div style="padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-size: 13px;">
+                    <div style="font-weight: 600; margin-bottom: 4px; color: #1e293b;">Spam & Low-Value Message Handling</div>
+                    <div style="font-size: 11px; color: #64748b; margin-bottom: 8px;">Automated behavior for junk and promotional notifications:</div>
+                    <select id="boundarySpamHandling" onchange="syncBoundaryPreferencesAndSave()" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: white;">
+                        <option value="delete">Automatically Delete / Filter in Background</option>
+                        <option value="archive">Keep in Off-Hours Deferred Queue</option>
+                    </select>
+                </div>
             </div>
             <button onclick="switchView('overviewView', document.querySelector('[data-view=\'overviewView\']'))" class="submit-btn" style="background: #0f172a; width: auto;">Save & Return to Overview</button>
         </div>
@@ -644,7 +660,7 @@
 <div id="meetingModal" class="modal-overlay">
     <div class="wizard-box" style="min-height: auto; max-width: 520px;">
         <button class="close-btn" onclick="closeMeetingModal()">&times;</button>
-        <h3 id="meetingModalTitle" style="margin-bottom: 4px;">➕ Add Meeting Link</h3>
+        <h3 id="meetingModalTitle" style="margin-bottom: 4px;">Add Meeting Link</h3>
         <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">Save an upcoming conference or meeting link to persistent storage.</p>
 
         <div id="meetingModalError" style="display: none; background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 14px; font-weight: 500;"></div>
@@ -705,9 +721,9 @@
         </div>
 
         <div style="display: flex; gap: 10px; justify-content: flex-end; align-items: center;">
-            <button type="button" id="modalDeleteMeetingBtn" onclick="deleteMeetingFromModal()" style="display: none; background: #ef4444; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; margin-right: auto;" title="Permanently delete this meeting">Delete 🗑️</button>
+            <button type="button" id="modalDeleteMeetingBtn" onclick="deleteMeetingFromModal()" style="display: none; background: #ef4444; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; margin-right: auto;" title="Permanently delete this meeting">Delete</button>
             <button type="button" onclick="closeMeetingModal()" style="background: #64748b; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px;">Cancel</button>
-            <button type="button" id="saveMeetingBtn" onclick="saveMeeting()" class="submit-btn" style="width: auto; padding: 10px 22px;">Save Link 💾</button>
+            <button type="button" id="saveMeetingBtn" onclick="saveMeeting()" class="submit-btn" style="width: auto; padding: 10px 22px;">Save Link</button>
         </div>
     </div>
 </div>
@@ -716,7 +732,7 @@
 <div id="taskModal" class="modal-overlay">
     <div class="wizard-box" style="min-height: auto; max-width: 520px;">
         <button class="close-btn" onclick="closeTaskModal()">&times;</button>
-        <h3 id="taskModalTitle" style="margin-bottom: 4px;">➕ Add Upcoming Task</h3>
+        <h3 id="taskModalTitle" style="margin-bottom: 4px;">Add Upcoming Task</h3>
         <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">Track your deliverables with deadline and advance alert reminders.</p>
 
         <div id="taskModalError" style="display: none; background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 14px; font-weight: 500;"></div>
@@ -764,9 +780,9 @@
         </div>
 
         <div style="display: flex; gap: 10px; justify-content: flex-end; align-items: center;">
-            <button type="button" id="modalDeleteTaskBtn" onclick="deleteTaskFromModal()" style="display: none; background: #ef4444; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; margin-right: auto;" title="Permanently delete this task">Delete 🗑️</button>
+            <button type="button" id="modalDeleteTaskBtn" onclick="deleteTaskFromModal()" style="display: none; background: #ef4444; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; margin-right: auto;" title="Permanently delete this task">Delete</button>
             <button type="button" onclick="closeTaskModal()" style="background: #64748b; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px;">Cancel</button>
-            <button type="button" id="saveTaskBtn" onclick="saveTask()" class="submit-btn" style="width: auto; padding: 10px 22px;">Save Task 💾</button>
+            <button type="button" id="saveTaskBtn" onclick="saveTask()" class="submit-btn" style="width: auto; padding: 10px 22px;">Save Task</button>
         </div>
     </div>
 </div>
@@ -1022,19 +1038,31 @@
                     document.getElementById('dndBypassToggle').checked = window.AndroidGateway.getAllowP1InSilentMode();
                 } catch(e){}
             }
-            if (data.default_persona) {
-                const toneEl = document.getElementById('settingsToneSelect');
-                if (toneEl) toneEl.value = data.default_persona;
-            }
-
             if (data.custom_topics !== undefined) userPreferences.custom_topics = data.custom_topics || '';
             if (data.handling_stage) userPreferences.handling_stage = data.handling_stage;
             if (data.spam_handling) userPreferences.spam_handling = data.spam_handling;
+
+            const bTopics = document.getElementById('boundaryCustomTopics');
+            if (bTopics) bTopics.value = userPreferences.custom_topics;
+            const bStage = document.getElementById('boundaryHandlingStage');
+            if (bStage) bStage.value = userPreferences.handling_stage;
+            const bSpam = document.getElementById('boundarySpamHandling');
+            if (bSpam) bSpam.value = userPreferences.spam_handling;
 
             if (!data.preferences_configured && !sessionStorage.getItem('skipped_preferences')) {
                 startQuestionnaire(0);
             }
         } catch (e) { console.error("Error loading settings:", e); }
+    }
+
+    function syncBoundaryPreferencesAndSave() {
+        const bTopics = document.getElementById('boundaryCustomTopics');
+        if (bTopics) userPreferences.custom_topics = bTopics.value.trim();
+        const bStage = document.getElementById('boundaryHandlingStage');
+        if (bStage) userPreferences.handling_stage = bStage.value;
+        const bSpam = document.getElementById('boundarySpamHandling');
+        if (bSpam) userPreferences.spam_handling = bSpam.value;
+        saveBoundarySettings();
     }
 
     function skipPreferencesForNow() {
@@ -1055,23 +1083,28 @@
         banner.style.zIndex = '999999';
         banner.style.fontSize = '13px';
         banner.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-        banner.innerHTML = '💡 <strong>Tip:</strong> For better app use, you can add preferences anytime in <span style="text-decoration: underline; cursor:pointer;" onclick="startQuestionnaire(0)">Message Preferences</span>.';
+        banner.innerHTML = '<strong>Tip:</strong> For better app use, you can adjust preferences anytime in <span style="text-decoration: underline; cursor:pointer;" onclick="startQuestionnaire(0)">Message Preferences</span>.';
         document.body.appendChild(banner);
         setTimeout(() => banner.remove(), 7000);
     }
 
     async function saveAndClosePreferences() {
         captureCurrentStepInput();
+        const bTopics = document.getElementById('boundaryCustomTopics');
+        if (bTopics) bTopics.value = userPreferences.custom_topics;
+        const bStage = document.getElementById('boundaryHandlingStage');
+        if (bStage) bStage.value = userPreferences.handling_stage;
+        const bSpam = document.getElementById('boundarySpamHandling');
+        if (bSpam) bSpam.value = userPreferences.spam_handling;
         await saveBoundarySettings();
         sessionStorage.setItem('skipped_preferences', 'false');
         closeQuestionnaire();
-        alert('✅ Message Preferences saved successfully!');
+        alert('Message Preferences saved successfully!');
     }
 
     async function saveBoundarySettings() {
-        const toneVal = document.getElementById('settingsToneSelect') ? document.getElementById('settingsToneSelect').value : 'casual';
         const workModeVal = document.getElementById('workModeToggle') ? document.getElementById('workModeToggle').checked : true;
-        const dndBypass = document.getElementById('dndBypassToggle').checked;
+        const dndBypass = document.getElementById('dndBypassToggle') ? document.getElementById('dndBypassToggle').checked : true;
 
         if (window.AndroidGateway && window.AndroidGateway.setAllowP1InSilentMode) {
             try {
@@ -1084,13 +1117,20 @@
             } catch(e){}
         }
 
+        const bTopics = document.getElementById('boundaryCustomTopics');
+        if (bTopics) userPreferences.custom_topics = bTopics.value.trim();
+        const bStage = document.getElementById('boundaryHandlingStage');
+        if (bStage) userPreferences.handling_stage = bStage.value;
+        const bSpam = document.getElementById('boundarySpamHandling');
+        if (bSpam) userPreferences.spam_handling = bSpam.value;
+
         const payload = {
             active_hours_enabled: document.getElementById('activeHoursToggle').checked,
             work_start_time: document.getElementById('workStartTime').value,
             work_end_time: document.getElementById('workEndTime').value,
             work_mode_enabled: workModeVal,
             dnd_bypass_enabled: dndBypass,
-            persona: toneVal,
+            persona: 'casual',
             custom_topics: userPreferences.custom_topics,
             handling_stage: userPreferences.handling_stage,
             spam_handling: userPreferences.spam_handling
@@ -1104,10 +1144,6 @@
         } catch (e) {
             console.error('Error saving settings:', e);
         }
-    }
-
-    function syncToneAndSave(val) {
-        saveBoundarySettings();
     }
 
     async function loadProfile() {
@@ -1308,29 +1344,29 @@
             const isDone = (t.status || '').toLowerCase() === 'completed';
             const isOverdue = displayStatus === 'Overdue';
             const badgeColor = isDone ? '#10b981' : (isOverdue ? '#ef4444' : '#f59e0b');
-            const remLabel = (t.reminder_offset !== undefined && t.reminder_offset !== null && parseInt(t.reminder_offset) > 0) ? `🔔 ${t.reminder_offset}m prior` : '🔕 No reminder';
+            const remLabel = (t.reminder_offset !== undefined && t.reminder_offset !== null && parseInt(t.reminder_offset) > 0) ? `${t.reminder_offset}m prior` : 'No reminder';
             const dueDisplay = (t.due_date || t.due_time) ? `${t.due_date || ''} ${t.due_time || ''}`.trim() : (t.deadline_text || 'Upcoming');
 
             div.innerHTML = `
                 <div style="flex: 1; min-width: 220px;">
                     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                        <span class="badge" style="background: ${badgeColor}; font-size: 11px;">${statusLabel}</span>
+                        <span class="badge" style="background: ${badgeColor}; font-size: 11px;">${escapeHtml(displayStatus)}</span>
                         <strong style="font-size: 14px; ${isDone ? 'text-decoration: line-through; color: #64748b;' : 'color: #0f172a;'}">${escapeHtml(t.task_title)}</strong>
                     </div>
                     ${t.description ? `<div style="font-size: 12px; color: #475569; margin-bottom: 4px;">${escapeHtml(t.description)}</div>` : ''}
                     <div style="font-size: 12px; color: #64748b; display: flex; gap: 14px; flex-wrap: wrap;">
-                        <span>🕒 <strong>Due:</strong> ${escapeHtml(dueDisplay)}</span>
-                        <span>${escapeHtml(remLabel)}</span>
+                        <span><strong>Due:</strong> ${escapeHtml(dueDisplay)}</span>
+                        <span><strong>Reminder:</strong> ${escapeHtml(remLabel)}</span>
                     </div>
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
                     ${isDone ? `
-                        <button type="button" onclick="updateTaskStatus(${t.id}, 'Pending')" style="background:#f59e0b; color:white; border:none; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Reopen task">Reopen 🔄</button>
+                        <button type="button" onclick="updateTaskStatus(${t.id}, 'Pending')" style="background:#f59e0b; color:white; border:none; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Reopen task">Reopen</button>
                     ` : `
-                        <button type="button" onclick="updateTaskStatus(${t.id}, 'Completed')" style="background:#10b981; color:white; border:none; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Mark task completed">Mark Done ✅</button>
+                        <button type="button" onclick="updateTaskStatus(${t.id}, 'Completed')" style="background:#10b981; color:white; border:none; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Mark task completed">Mark Done</button>
                     `}
-                    <button type="button" onclick="openTaskModalById(${t.id})" style="background:#3b82f6; color:white; border:none; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Edit task details">Edit ✏️</button>
-                    <button type="button" onclick="deleteTask(${t.id})" style="background:#ef4444; color:white; border:none; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Delete task permanently">Delete 🗑️</button>
+                    <button type="button" onclick="openTaskModalById(${t.id})" style="background:#3b82f6; color:white; border:none; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Edit task details">Edit</button>
+                    <button type="button" onclick="deleteTask(${t.id})" style="background:#ef4444; color:white; border:none; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Delete task permanently">Delete</button>
                 </div>
             `;
             listDiv.appendChild(div);
@@ -1348,7 +1384,7 @@
 
         const deleteBtn = document.getElementById('modalDeleteTaskBtn');
         if (task && task.id) {
-            document.getElementById('taskModalTitle').innerText = '✏️ Edit Upcoming Task';
+            document.getElementById('taskModalTitle').innerText = 'Edit Upcoming Task';
             document.getElementById('taskIdInput').value = task.id || '';
             document.getElementById('taskTitleInput').value = task.task_title || '';
             document.getElementById('taskDescInput').value = task.description || '';
@@ -1358,7 +1394,7 @@
             document.getElementById('taskStatusInput').value = task.status || 'Pending';
             if (deleteBtn) deleteBtn.style.display = 'block';
         } else {
-            document.getElementById('taskModalTitle').innerText = '➕ Add Upcoming Task';
+            document.getElementById('taskModalTitle').innerText = 'Add Upcoming Task';
             document.getElementById('taskIdInput').value = '';
             document.getElementById('taskTitleInput').value = '';
             document.getElementById('taskDescInput').value = '';
@@ -1438,6 +1474,7 @@
             closeTaskModal();
             showTaskAlert(id ? 'Task updated successfully!' : 'Task added successfully!', 'success');
             await loadTasks();
+            await loadMeetings();
 
             if (window.AndroidGateway && window.AndroidGateway.syncReminders) {
                 try { window.AndroidGateway.syncReminders(); } catch(e){}
@@ -1449,7 +1486,7 @@
             }
         } finally {
             saveBtn.disabled = false;
-            saveBtn.innerText = 'Save Task 💾';
+            saveBtn.innerText = 'Save Task';
         }
     }
 
@@ -1463,10 +1500,14 @@
             const data = await res.json();
             if (res.ok && data.status === 'success') {
                 showTaskAlert(`Task marked as ${status}!`, 'success');
-                await loadTasks();
+                if (status === 'Completed' && window.AndroidGateway && window.AndroidGateway.cancelTask) {
+                    try { window.AndroidGateway.cancelTask(taskId); } catch(e){}
+                }
                 if (window.AndroidGateway && window.AndroidGateway.syncReminders) {
                     try { window.AndroidGateway.syncReminders(); } catch(e){}
                 }
+                await loadTasks();
+                await loadMeetings();
             } else {
                 showTaskAlert(data.error || 'Failed to update task status.', 'error');
             }
@@ -1495,6 +1536,7 @@
             if (res.ok && data.status === 'success') {
                 showTaskAlert('Task deleted successfully.', 'success');
                 await loadTasks();
+                await loadMeetings();
                 if (window.AndroidGateway && window.AndroidGateway.cancelTask) {
                     try { window.AndroidGateway.cancelTask(idInt); } catch(e){}
                 }
@@ -1512,6 +1554,24 @@
 
     // --- MEETING LINKS MANAGEMENT ---
     let allMeetings = [];
+    let currentMeetingFilter = 'active';
+
+    function setMeetingFilter(filter) {
+        currentMeetingFilter = filter;
+        ['active', 'all', 'completed'].forEach(f => {
+            const btn = document.getElementById('meetingFilter' + f.charAt(0).toUpperCase() + f.slice(1));
+            if (btn) {
+                if (f === filter) {
+                    btn.style.background = 'white';
+                    btn.style.color = 'var(--primary)';
+                } else {
+                    btn.style.background = 'transparent';
+                    btn.style.color = '#64748b';
+                }
+            }
+        });
+        renderMeetings();
+    }
 
     function getMeetingLifecycleStatus(m) {
         if (!m) return 'Upcoming';
@@ -1537,7 +1597,7 @@
             const data = await res.json();
             allMeetings = data.meetings || [];
             
-            // Count active meetings (not cancelled or completed)
+            // Count active meetings (not cancelled or completed, overdue remain active!)
             const activeMeetings = allMeetings.filter(m => (m.status || 'Scheduled').toLowerCase() !== 'cancelled' && (m.status || '').toLowerCase() !== 'completed');
             const badgeEl = document.getElementById('sidebarMeetingCount');
             if (badgeEl) badgeEl.innerText = activeMeetings.length;
@@ -1553,12 +1613,22 @@
         if (!listDiv) return;
         listDiv.innerHTML = '';
 
-        if (allMeetings.length === 0) {
-            listDiv.innerHTML = '<div style="color: #888; font-size: 13px; text-align: center; padding: 28px;">No scheduled meetings recorded yet. Click "+ Add Meeting Link" to save one.</div>';
+        let filtered = allMeetings;
+        if (currentMeetingFilter === 'active') {
+            filtered = allMeetings.filter(m => (m.status || 'Scheduled').toLowerCase() !== 'completed' && (m.status || '').toLowerCase() !== 'cancelled');
+        } else if (currentMeetingFilter === 'completed') {
+            filtered = allMeetings.filter(m => (m.status || '').toLowerCase() === 'completed');
+        }
+
+        if (filtered.length === 0) {
+            let msg = 'No scheduled meetings recorded yet.';
+            if (currentMeetingFilter === 'completed') msg = 'No completed meetings recorded yet.';
+            if (currentMeetingFilter === 'all') msg = 'No meetings recorded yet. Click "+ Add Meeting Link" to save one.';
+            listDiv.innerHTML = `<div style="color: #888; font-size: 13px; text-align: center; padding: 28px;">${msg}</div>`;
             return;
         }
 
-        allMeetings.forEach(m => {
+        filtered.forEach(m => {
             const div = document.createElement('div');
             div.style.padding = '14px 16px';
             div.style.borderBottom = '1px solid #e2e8f0';
@@ -1580,7 +1650,7 @@
             const isDone = (m.status || '').toLowerCase() === 'completed';
             const isOverdue = displayStatus === 'Overdue';
             const statusColor = isDone ? '#10b981' : (isOverdue ? '#ef4444' : (displayStatus === 'Cancelled' ? '#64748b' : '#2563eb'));
-            const remLabel = (m.reminder_offset !== undefined && m.reminder_offset !== null && parseInt(m.reminder_offset) > 0) ? `🔔 ${m.reminder_offset}m prior` : '🔕 No reminder';
+            const remLabel = (m.reminder_offset !== undefined && m.reminder_offset !== null && parseInt(m.reminder_offset) > 0) ? `${m.reminder_offset}m prior` : 'No reminder';
             const timeDisplay = (m.meeting_date || m.start_time) ? `${m.meeting_date || ''} ${m.start_time || ''}`.trim() : (m.scheduled_time || 'Upcoming');
 
             div.innerHTML = `
@@ -1588,26 +1658,26 @@
                     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
                         <span class="badge" style="background: ${pColor}; font-size: 11px;">${escapeHtml(m.platform)}</span>
                         <span class="badge" style="background: ${statusColor}; font-size: 10px;">${escapeHtml(displayStatus)}</span>
-                        <strong style="font-size: 14px; color: #0f172a;">${escapeHtml(m.title || m.platform + ' Call')}</strong>
+                        <strong style="font-size: 14px; ${isDone ? 'text-decoration: line-through; color: #64748b;' : 'color: #0f172a;'}">${escapeHtml(m.title || m.platform + ' Call')}</strong>
                     </div>
                     <div style="font-size: 12px; color: #64748b; margin-bottom: 4px; display: flex; gap: 14px; flex-wrap: wrap;">
-                        <span>🕒 <strong>Time:</strong> ${escapeHtml(timeDisplay)}</span>
-                        <span>${escapeHtml(remLabel)}</span>
+                        <span><strong>Time:</strong> ${escapeHtml(timeDisplay)}</span>
+                        <span><strong>Reminder:</strong> ${escapeHtml(remLabel)}</span>
                     </div>
                     <div style="font-size: 11px; color: #94a3b8; word-break: break-all;">
-                        🔗 <a href="${escapeHtml(m.meeting_url)}" target="_blank" style="color: #3b82f6; text-decoration: none;">${escapeHtml(m.meeting_url)}</a>
+                        <span style="font-weight:600; color:#64748b;">URL:</span> <a href="${escapeHtml(m.meeting_url)}" target="_blank" style="color: #3b82f6; text-decoration: none;">${escapeHtml(m.meeting_url)}</a>
                     </div>
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                    <a href="${escapeHtml(m.meeting_url)}" target="_blank" class="directive-card" style="margin:0; text-decoration:none; background:#2563eb; color:white; padding:7px 13px; border-radius:6px; font-size:12px; font-weight:600;">Launch 🚀</a>
+                    <a href="${escapeHtml(m.meeting_url)}" target="_blank" class="directive-card" style="margin:0; text-decoration:none; background:#2563eb; color:white; padding:7px 13px; border-radius:6px; font-size:12px; font-weight:600;">Launch</a>
                     ${isDone ? `
-                        <button type="button" onclick="updateMeetingStatus(${m.id}, 'Scheduled')" style="background:#f59e0b; color:white; border:none; padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Reopen meeting">Reopen 🔄</button>
+                        <button type="button" onclick="updateMeetingStatus(${m.id}, 'Scheduled')" style="background:#f59e0b; color:white; border:none; padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Reopen meeting">Reopen</button>
                     ` : `
-                        <button type="button" onclick="updateMeetingStatus(${m.id}, 'Completed')" style="background:#10b981; color:white; border:none; padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Mark meeting completed">Done ✅</button>
+                        <button type="button" onclick="updateMeetingStatus(${m.id}, 'Completed')" style="background:#10b981; color:white; border:none; padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Mark meeting completed">Done</button>
                     `}
-                    <button type="button" onclick="copyMeetingLinkById(${m.id})" style="background:#f1f5f9; color:#334155; border:1px solid var(--border); padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Copy URL">Copy 📋</button>
-                    <button type="button" onclick="openMeetingModalById(${m.id})" style="background:#3b82f6; color:white; border:none; padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Edit meeting">Edit ✏️</button>
-                    <button type="button" onclick="deleteMeeting(${m.id})" style="background:#ef4444; color:white; border:none; padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Delete meeting permanently">Delete 🗑️</button>
+                    <button type="button" onclick="copyMeetingLinkById(${m.id})" style="background:#f1f5f9; color:#334155; border:1px solid var(--border); padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Copy URL">Copy</button>
+                    <button type="button" onclick="openMeetingModalById(${m.id})" style="background:#3b82f6; color:white; border:none; padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Edit meeting">Edit</button>
+                    <button type="button" onclick="deleteMeeting(${m.id})" style="background:#ef4444; color:white; border:none; padding:7px 11px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;" title="Delete meeting permanently">Delete</button>
                 </div>
             `;
             listDiv.appendChild(div);
@@ -1622,10 +1692,14 @@
                 body: JSON.stringify({ meeting_id: meetingId, status: newStatus })
             });
             if (res.ok) {
+                if (newStatus === 'Completed' && window.AndroidGateway && window.AndroidGateway.cancelMeeting) {
+                    try { window.AndroidGateway.cancelMeeting(meetingId); } catch(e){}
+                }
                 if (window.AndroidGateway && window.AndroidGateway.syncReminders) {
                     try { window.AndroidGateway.syncReminders(); } catch(e){}
                 }
                 await loadMeetings();
+                await loadTasks();
             }
         } catch(e) {
             console.error('Failed to update meeting status:', e);
@@ -1650,7 +1724,7 @@
 
         const deleteBtn = document.getElementById('modalDeleteMeetingBtn');
         if (meeting && meeting.id) {
-            document.getElementById('meetingModalTitle').innerText = '✏️ Edit Meeting Link';
+            document.getElementById('meetingModalTitle').innerText = 'Edit Meeting Link';
             document.getElementById('meetingIdInput').value = meeting.id || '';
             document.getElementById('meetingTitleInput').value = meeting.title || '';
             document.getElementById('meetingPlatformInput').value = meeting.platform || 'Auto-Detect';
@@ -1661,7 +1735,7 @@
             document.getElementById('meetingStatusInput').value = meeting.status || 'Scheduled';
             if (deleteBtn) deleteBtn.style.display = 'block';
         } else {
-            document.getElementById('meetingModalTitle').innerText = '➕ Add Meeting Link';
+            document.getElementById('meetingModalTitle').innerText = 'Add Meeting Link';
             document.getElementById('meetingIdInput').value = '';
             document.getElementById('meetingTitleInput').value = '';
             document.getElementById('meetingPlatformInput').value = 'Auto-Detect';
@@ -1756,6 +1830,7 @@
             closeMeetingModal();
             showMeetingAlert(id ? 'Meeting link updated successfully!' : 'Meeting link saved successfully!', 'success');
             await loadMeetings();
+            await loadTasks();
 
             if (window.AndroidGateway && window.AndroidGateway.syncReminders) {
                 try { window.AndroidGateway.syncReminders(); } catch(e){}
@@ -1767,7 +1842,7 @@
             }
         } finally {
             saveBtn.disabled = false;
-            saveBtn.innerText = 'Save Link 💾';
+            saveBtn.innerText = 'Save Link';
         }
     }
 
@@ -1790,6 +1865,7 @@
             if (res.ok && data.status === 'success') {
                 showMeetingAlert('Meeting link deleted successfully.', 'success');
                 await loadMeetings();
+                await loadTasks();
                 if (window.AndroidGateway && window.AndroidGateway.cancelMeeting) {
                     try { window.AndroidGateway.cancelMeeting(idInt); } catch(e){}
                 }

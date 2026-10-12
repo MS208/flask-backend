@@ -148,6 +148,7 @@ def init_db():
             reminder_timestamp BIGINT,
             source_message TEXT,
             sender TEXT,
+            linked_meeting_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     '''
@@ -169,6 +170,7 @@ def init_db():
             title TEXT DEFAULT '',
             source_message TEXT,
             sender TEXT,
+            linked_task_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     '''
@@ -199,6 +201,7 @@ def init_db():
         cursor.execute("ALTER TABLE reminders ADD COLUMN IF NOT EXISTS reminder_timestamp BIGINT;")
         cursor.execute("ALTER TABLE reminders ADD COLUMN IF NOT EXISTS source_message TEXT;")
         cursor.execute("ALTER TABLE reminders ADD COLUMN IF NOT EXISTS sender TEXT;")
+        cursor.execute("ALTER TABLE reminders ADD COLUMN IF NOT EXISTS linked_meeting_id INTEGER;")
         cursor.execute("ALTER TABLE reminders ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;")
         
         cursor.execute("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS title TEXT DEFAULT '';")
@@ -209,6 +212,7 @@ def init_db():
         cursor.execute("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Scheduled';")
         cursor.execute("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS source_message TEXT;")
         cursor.execute("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS sender TEXT;")
+        cursor.execute("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS linked_task_id INTEGER;")
         cursor.execute("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;")
         cursor.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS work_mode_enabled INTEGER DEFAULT 1;")
         cursor.execute("ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS custom_topics TEXT DEFAULT '';")
@@ -244,6 +248,8 @@ def init_db():
             cursor.execute("ALTER TABLE reminders ADD COLUMN source_message TEXT")
         if 'sender' not in reminder_cols:
             cursor.execute("ALTER TABLE reminders ADD COLUMN sender TEXT")
+        if 'linked_meeting_id' not in reminder_cols:
+            cursor.execute("ALTER TABLE reminders ADD COLUMN linked_meeting_id INTEGER")
         if 'created_at' not in reminder_cols:
             cursor.execute("ALTER TABLE reminders ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
 
@@ -265,6 +271,8 @@ def init_db():
             cursor.execute("ALTER TABLE meetings ADD COLUMN source_message TEXT")
         if 'sender' not in meeting_cols:
             cursor.execute("ALTER TABLE meetings ADD COLUMN sender TEXT")
+        if 'linked_task_id' not in meeting_cols:
+            cursor.execute("ALTER TABLE meetings ADD COLUMN linked_task_id INTEGER")
         if 'created_at' not in meeting_cols:
             cursor.execute("ALTER TABLE meetings ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
 
@@ -462,7 +470,7 @@ def get_meetings_for_user(username):
     uname = (username or 'admin').strip().lower()
     rows = query_db("""
         SELECT id, platform, meeting_url, scheduled_time, meeting_date, start_time, 
-               reminder_offset, reminder_timestamp, status, title, source_message, sender, created_at 
+               reminder_offset, reminder_timestamp, status, title, source_message, sender, created_at, linked_task_id 
         FROM meetings 
         WHERE LOWER(username) = ? 
         ORDER BY id DESC
@@ -482,7 +490,8 @@ def get_meetings_for_user(username):
             'title': row.get('title') or f"{row.get('platform', 'Meeting')} Meeting",
             'source_message': row.get('source_message') or '',
             'sender': row.get('sender') or '',
-            'created_at': str(row.get('created_at') or '')
+            'created_at': str(row.get('created_at') or ''),
+            'linked_task_id': row.get('linked_task_id')
         } for row in rows
     ]
 
@@ -535,17 +544,70 @@ def add_meeting(username, platform, meeting_url, scheduled_time="Unknown", title
         existing_id = int(existing['id'])
         return (existing_id, False) if return_tuple else existing_id
 
-    new_id = query_db("""
-        INSERT INTO meetings (username, platform, meeting_url, scheduled_time, meeting_date, start_time, 
-                              reminder_offset, reminder_timestamp, status, title, source_message, sender)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (uname, platform, url, scheduled_time, meeting_date, start_time, reminder_offset, reminder_timestamp, status, title, source_message, sender), commit=True)
-    new_id = int(new_id) if new_id else None
-    return (new_id, True) if return_tuple else new_id
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        if is_postgres():
+            cursor.execute("""
+                INSERT INTO meetings (username, platform, meeting_url, scheduled_time, meeting_date, start_time, 
+                                      reminder_offset, reminder_timestamp, status, title, source_message, sender)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (uname, platform, url, scheduled_time, meeting_date, start_time, reminder_offset, reminder_timestamp, status, title, source_message, sender))
+            row = cursor.fetchone()
+            new_id = int(row[0]) if row else None
+        else:
+            cursor.execute("""
+                INSERT INTO meetings (username, platform, meeting_url, scheduled_time, meeting_date, start_time, 
+                                      reminder_offset, reminder_timestamp, status, title, source_message, sender)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (uname, platform, url, scheduled_time, meeting_date, start_time, reminder_offset, reminder_timestamp, status, title, source_message, sender))
+            new_id = int(cursor.lastrowid) if cursor.lastrowid else None
+
+        # Auto-generate linked Upcoming Task
+        if new_id:
+            task_deadline = scheduled_time if scheduled_time != 'Unknown' else f"{meeting_date} {start_time}".strip()
+            task_desc = f"Meeting Link: {url}"
+            task_status = 'Completed' if status.lower() == 'completed' else 'Pending'
+            buffer_lead = f"{reminder_offset}m prior" if reminder_offset > 0 else "No reminder"
+
+            if is_postgres():
+                cursor.execute("""
+                    INSERT INTO reminders (username, task_title, description, deadline_text, buffer_lead, status, 
+                                           due_date, due_time, reminder_offset, reminder_timestamp, source_message, sender, linked_meeting_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                """, (uname, title, task_desc, task_deadline, buffer_lead, task_status, meeting_date, start_time, reminder_offset, reminder_timestamp, source_message, sender, new_id))
+                t_row = cursor.fetchone()
+                task_id = int(t_row[0]) if t_row else None
+                if task_id:
+                    cursor.execute("UPDATE meetings SET linked_task_id = %s WHERE id = %s", (task_id, new_id))
+            else:
+                cursor.execute("""
+                    INSERT INTO reminders (username, task_title, description, deadline_text, buffer_lead, status, 
+                                           due_date, due_time, reminder_offset, reminder_timestamp, source_message, sender, linked_meeting_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (uname, title, task_desc, task_deadline, buffer_lead, task_status, meeting_date, start_time, reminder_offset, reminder_timestamp, source_message, sender, new_id))
+                task_id = int(cursor.lastrowid) if cursor.lastrowid else None
+                if task_id:
+                    cursor.execute("UPDATE meetings SET linked_task_id = ? WHERE id = ?", (task_id, new_id))
+
+        conn.commit()
+        return (new_id, True) if return_tuple else new_id
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 def update_meeting(meeting_id, username, platform, meeting_url, scheduled_time="Unknown", title="", 
                    meeting_date="", start_time="", reminder_offset=30, reminder_timestamp=None, status="Scheduled"):
-    uname = (username or 'admin').strip().lower()
+    try:
+        m_id = int(meeting_id)
+    except (ValueError, TypeError):
+        return False
+
+    uname = (username or '').strip().lower() if username else None
     url = meeting_url.strip()
     platform = platform.strip() or 'Meeting'
     title = title.strip() or f"{platform} Meeting"
@@ -566,21 +628,82 @@ def update_meeting(meeting_id, username, platform, meeting_url, scheduled_time="
     try:
         cursor = conn.cursor()
         if is_postgres():
+            cursor.execute("SELECT id, username, linked_task_id FROM meetings WHERE id = %s", (m_id,))
+        else:
+            cursor.execute("SELECT id, username, linked_task_id FROM meetings WHERE id = ?", (m_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+
+        row_user = (row[1] if isinstance(row, tuple) else row['username']) or ''
+        row_user = row_user.strip().lower()
+        authorized = (not uname or uname == 'admin' or row_user == uname or not row_user or row_user == 'admin')
+        if not authorized:
+            return False
+
+        if is_postgres():
             cursor.execute("""
                 UPDATE meetings 
                 SET platform = %s, meeting_url = %s, scheduled_time = %s, title = %s,
                     meeting_date = %s, start_time = %s, reminder_offset = %s, reminder_timestamp = %s, status = %s
-                WHERE id = %s AND LOWER(username) = %s
-            """, (platform, url, scheduled_time, title, meeting_date, start_time, reminder_offset, reminder_timestamp, status, meeting_id, uname))
+                WHERE id = %s
+            """, (platform, url, scheduled_time, title, meeting_date, start_time, reminder_offset, reminder_timestamp, status, m_id))
         else:
             cursor.execute("""
                 UPDATE meetings 
                 SET platform = ?, meeting_url = ?, scheduled_time = ?, title = ?,
                     meeting_date = ?, start_time = ?, reminder_offset = ?, reminder_timestamp = ?, status = ?
-                WHERE id = ? AND LOWER(username) = ?
-            """, (platform, url, scheduled_time, title, meeting_date, start_time, reminder_offset, reminder_timestamp, status, meeting_id, uname))
+                WHERE id = ?
+            """, (platform, url, scheduled_time, title, meeting_date, start_time, reminder_offset, reminder_timestamp, status, m_id))
+
+        # Synchronize linked Upcoming Task
+        task_status = 'Completed' if status.lower() == 'completed' else 'Pending'
+        task_deadline = scheduled_time if scheduled_time != 'Unknown' else f"{meeting_date} {start_time}".strip()
+        task_desc = f"Meeting Link: {url}"
+        buffer_lead = f"{reminder_offset}m prior" if reminder_offset > 0 else "No reminder"
+
+        if is_postgres():
+            cursor.execute("SELECT id FROM reminders WHERE linked_meeting_id = %s", (m_id,))
+            t_row = cursor.fetchone()
+            if t_row:
+                cursor.execute("""
+                    UPDATE reminders
+                    SET task_title = %s, description = %s, deadline_text = %s, buffer_lead = %s, status = %s,
+                        due_date = %s, due_time = %s, reminder_offset = %s, reminder_timestamp = %s
+                    WHERE linked_meeting_id = %s
+                """, (title, task_desc, task_deadline, buffer_lead, task_status, meeting_date, start_time, reminder_offset, reminder_timestamp, m_id))
+            else:
+                cursor.execute("""
+                    INSERT INTO reminders (username, task_title, description, deadline_text, buffer_lead, status, 
+                                           due_date, due_time, reminder_offset, reminder_timestamp, linked_meeting_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                """, (row_user or uname or 'admin', title, task_desc, task_deadline, buffer_lead, task_status, meeting_date, start_time, reminder_offset, reminder_timestamp, m_id))
+                new_t = cursor.fetchone()
+                if new_t:
+                    cursor.execute("UPDATE meetings SET linked_task_id = %s WHERE id = %s", (new_t[0], m_id))
+        else:
+            cursor.execute("SELECT id FROM reminders WHERE linked_meeting_id = ?", (m_id,))
+            t_row = cursor.fetchone()
+            if t_row:
+                cursor.execute("""
+                    UPDATE reminders
+                    SET task_title = ?, description = ?, deadline_text = ?, buffer_lead = ?, status = ?, 
+                        due_date = ?, due_time = ?, reminder_offset = ?, reminder_timestamp = ?
+                    WHERE linked_meeting_id = ?
+                """, (title, task_desc, task_deadline, buffer_lead, task_status, meeting_date, start_time, reminder_offset, reminder_timestamp, m_id))
+            else:
+                cursor.execute("""
+                    INSERT INTO reminders (username, task_title, description, deadline_text, buffer_lead, status, 
+                                           due_date, due_time, reminder_offset, reminder_timestamp, linked_meeting_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (row_user or uname or 'admin', title, task_desc, task_deadline, buffer_lead, task_status, meeting_date, start_time, reminder_offset, reminder_timestamp, m_id))
+                new_tid = cursor.lastrowid
+                if new_tid:
+                    cursor.execute("UPDATE meetings SET linked_task_id = ? WHERE id = ?", (new_tid, m_id))
+
         conn.commit()
-        return cursor.rowcount > 0
+        return True
     finally:
         try:
             conn.close()
@@ -588,24 +711,43 @@ def update_meeting(meeting_id, username, platform, meeting_url, scheduled_time="
             pass
 
 def update_meeting_status(meeting_id, username, status):
-    uname = (username or 'admin').strip().lower()
+    try:
+        m_id = int(meeting_id)
+    except (ValueError, TypeError):
+        return False
+
+    uname = (username or '').strip().lower() if username else None
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         if is_postgres():
-            cursor.execute("""
-                UPDATE meetings 
-                SET status = %s
-                WHERE id = %s AND LOWER(username) = %s
-            """, (status, meeting_id, uname))
+            cursor.execute("SELECT id, username, linked_task_id FROM meetings WHERE id = %s", (m_id,))
         else:
-            cursor.execute("""
-                UPDATE meetings 
-                SET status = ?
-                WHERE id = ? AND LOWER(username) = ?
-            """, (status, meeting_id, uname))
+            cursor.execute("SELECT id, username, linked_task_id FROM meetings WHERE id = ?", (m_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+
+        row_user = (row[1] if isinstance(row, tuple) else row['username']) or ''
+        row_user = row_user.strip().lower()
+        authorized = (not uname or uname == 'admin' or row_user == uname or not row_user or row_user == 'admin')
+        if not authorized:
+            return False
+
+        if is_postgres():
+            cursor.execute("UPDATE meetings SET status = %s WHERE id = %s", (status, m_id))
+        else:
+            cursor.execute("UPDATE meetings SET status = ? WHERE id = ?", (status, m_id))
+
+        # Bi-directional sync with linked Upcoming Task
+        task_status = 'Completed' if status.lower() == 'completed' else 'Pending'
+        if is_postgres():
+            cursor.execute("UPDATE reminders SET status = %s WHERE linked_meeting_id = %s", (task_status, m_id))
+        else:
+            cursor.execute("UPDATE reminders SET status = ? WHERE linked_meeting_id = ?", (task_status, m_id))
+
         conn.commit()
-        return cursor.rowcount > 0
+        return True
     finally:
         try:
             conn.close()
@@ -623,9 +765,9 @@ def delete_meeting(meeting_id, username=None):
     try:
         cursor = conn.cursor()
         if is_postgres():
-            cursor.execute("SELECT id, username FROM meetings WHERE id = %s", (m_id,))
+            cursor.execute("SELECT id, username, linked_task_id FROM meetings WHERE id = %s", (m_id,))
         else:
-            cursor.execute("SELECT id, username FROM meetings WHERE id = ?", (m_id,))
+            cursor.execute("SELECT id, username, linked_task_id FROM meetings WHERE id = ?", (m_id,))
         row = cursor.fetchone()
         if not row:
             return False
@@ -643,12 +785,15 @@ def delete_meeting(meeting_id, username=None):
         if not authorized:
             return False
 
+        # Deleting a meeting also removes its generated task in Upcoming Tasks
         if is_postgres():
+            cursor.execute("DELETE FROM reminders WHERE linked_meeting_id = %s", (m_id,))
             cursor.execute("DELETE FROM meetings WHERE id = %s", (m_id,))
         else:
+            cursor.execute("DELETE FROM reminders WHERE linked_meeting_id = ?", (m_id,))
             cursor.execute("DELETE FROM meetings WHERE id = ?", (m_id,))
         conn.commit()
-        return cursor.rowcount > 0
+        return True
     finally:
         try:
             conn.close()
@@ -661,7 +806,7 @@ def get_tasks_for_user(username):
     uname = (username or 'admin').strip().lower()
     rows = query_db("""
         SELECT id, task_title, description, deadline_text, buffer_lead, status, due_date, due_time, 
-               reminder_offset, reminder_timestamp, source_message, sender, created_at 
+               reminder_offset, reminder_timestamp, source_message, sender, created_at, linked_meeting_id 
         FROM reminders 
         WHERE LOWER(username) = ? 
         ORDER BY id DESC
@@ -681,7 +826,8 @@ def get_tasks_for_user(username):
             'reminder_timestamp': row.get('reminder_timestamp'),
             'source_message': row.get('source_message') or '',
             'sender': row.get('sender') or '',
-            'created_at': str(row.get('created_at') or '')
+            'created_at': str(row.get('created_at') or ''),
+            'linked_meeting_id': row.get('linked_meeting_id')
         } for row in rows
     ]
 
@@ -697,7 +843,7 @@ def get_task_by_title(username, task_title):
 
 def add_task(username, task_title, deadline_text="No deadline specified", buffer_lead="30m prior", status="Pending", 
              due_date="", due_time="", description="", reminder_offset=30, reminder_timestamp=None, 
-             source_message="", sender="", return_tuple=False):
+             source_message="", sender="", linked_meeting_id=None, return_tuple=False):
     uname = (username or 'admin').strip().lower()
     title = task_title.strip()
     deadline_text = (deadline_text or 'No deadline specified').strip()
@@ -735,17 +881,42 @@ def add_task(username, task_title, deadline_text="No deadline specified", buffer
         existing_id = int(existing['id'])
         return (existing_id, False) if return_tuple else existing_id
 
-    new_id = query_db("""
-        INSERT INTO reminders (username, task_title, description, deadline_text, buffer_lead, status, 
-                               due_date, due_time, reminder_offset, reminder_timestamp, source_message, sender)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (uname, title, description, deadline_text, buffer_lead, status, due_date, due_time, reminder_offset, reminder_timestamp, source_message, sender), commit=True)
-    new_id = int(new_id) if new_id else None
-    return (new_id, True) if return_tuple else new_id
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        if is_postgres():
+            cursor.execute("""
+                INSERT INTO reminders (username, task_title, description, deadline_text, buffer_lead, status, 
+                                       due_date, due_time, reminder_offset, reminder_timestamp, source_message, sender, linked_meeting_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (uname, title, description, deadline_text, buffer_lead, status, due_date, due_time, reminder_offset, reminder_timestamp, source_message, sender, linked_meeting_id))
+            row = cursor.fetchone()
+            new_id = int(row[0]) if row else None
+        else:
+            cursor.execute("""
+                INSERT INTO reminders (username, task_title, description, deadline_text, buffer_lead, status, 
+                                       due_date, due_time, reminder_offset, reminder_timestamp, source_message, sender, linked_meeting_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (uname, title, description, deadline_text, buffer_lead, status, due_date, due_time, reminder_offset, reminder_timestamp, source_message, sender, linked_meeting_id))
+            new_id = int(cursor.lastrowid) if cursor.lastrowid else None
+
+        conn.commit()
+        return (new_id, True) if return_tuple else new_id
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 def update_task(task_id, username, task_title, deadline_text="No deadline specified", buffer_lead="30m prior", 
                 status="Pending", due_date="", due_time="", description="", reminder_offset=30, reminder_timestamp=None):
-    uname = (username or 'admin').strip().lower()
+    try:
+        t_id = int(task_id)
+    except (ValueError, TypeError):
+        return False
+
+    uname = (username or '').strip().lower() if username else None
     title = task_title.strip()
     deadline_text = (deadline_text or 'No deadline specified').strip()
     buffer_lead = (buffer_lead or '30m prior').strip()
@@ -766,21 +937,56 @@ def update_task(task_id, username, task_title, deadline_text="No deadline specif
     try:
         cursor = conn.cursor()
         if is_postgres():
+            cursor.execute("SELECT id, username, linked_meeting_id FROM reminders WHERE id = %s", (t_id,))
+        else:
+            cursor.execute("SELECT id, username, linked_meeting_id FROM reminders WHERE id = ?", (t_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+
+        row_user = (row[1] if isinstance(row, tuple) else row['username']) or ''
+        row_user = row_user.strip().lower()
+        authorized = (not uname or uname == 'admin' or row_user == uname or not row_user or row_user == 'admin')
+        if not authorized:
+            return False
+
+        if is_postgres():
             cursor.execute("""
                 UPDATE reminders 
                 SET task_title = %s, description = %s, deadline_text = %s, buffer_lead = %s, status = %s, 
                     due_date = %s, due_time = %s, reminder_offset = %s, reminder_timestamp = %s
-                WHERE id = %s AND LOWER(username) = %s
-            """, (title, description, deadline_text, buffer_lead, status, due_date, due_time, reminder_offset, reminder_timestamp, task_id, uname))
+                WHERE id = %s
+            """, (title, description, deadline_text, buffer_lead, status, due_date, due_time, reminder_offset, reminder_timestamp, t_id))
         else:
             cursor.execute("""
                 UPDATE reminders 
                 SET task_title = ?, description = ?, deadline_text = ?, buffer_lead = ?, status = ?, 
                     due_date = ?, due_time = ?, reminder_offset = ?, reminder_timestamp = ?
-                WHERE id = ? AND LOWER(username) = ?
-            """, (title, description, deadline_text, buffer_lead, status, due_date, due_time, reminder_offset, reminder_timestamp, task_id, uname))
+                WHERE id = ?
+            """, (title, description, deadline_text, buffer_lead, status, due_date, due_time, reminder_offset, reminder_timestamp, t_id))
+
+        # If linked to a meeting, sync title, date, time, reminder and status to meeting
+        linked_m_id = row['linked_meeting_id'] if hasattr(row, 'keys') else (row[2] if len(row) > 2 else None)
+        if linked_m_id:
+            m_status = 'Completed' if status.lower() == 'completed' else 'Scheduled'
+            sched_time = f"{due_date} {due_time}".strip() or deadline_text
+            if is_postgres():
+                cursor.execute("""
+                    UPDATE meetings 
+                    SET title = %s, meeting_date = %s, start_time = %s, scheduled_time = %s,
+                        reminder_offset = %s, reminder_timestamp = %s, status = %s
+                    WHERE id = %s
+                """, (title, due_date, due_time, sched_time, reminder_offset, reminder_timestamp, m_status, linked_m_id))
+            else:
+                cursor.execute("""
+                    UPDATE meetings 
+                    SET title = ?, meeting_date = ?, start_time = ?, scheduled_time = ?,
+                        reminder_offset = ?, reminder_timestamp = ?, status = ?
+                    WHERE id = ?
+                """, (title, due_date, due_time, sched_time, reminder_offset, reminder_timestamp, m_status, linked_m_id))
+
         conn.commit()
-        return cursor.rowcount > 0
+        return True
     finally:
         try:
             conn.close()
@@ -788,24 +994,45 @@ def update_task(task_id, username, task_title, deadline_text="No deadline specif
             pass
 
 def update_task_status(task_id, username, status):
-    uname = (username or 'admin').strip().lower()
+    try:
+        t_id = int(task_id)
+    except (ValueError, TypeError):
+        return False
+
+    uname = (username or '').strip().lower() if username else None
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         if is_postgres():
-            cursor.execute("""
-                UPDATE reminders 
-                SET status = %s
-                WHERE id = %s AND LOWER(username) = %s
-            """, (status, task_id, uname))
+            cursor.execute("SELECT id, username, linked_meeting_id FROM reminders WHERE id = %s", (t_id,))
         else:
-            cursor.execute("""
-                UPDATE reminders 
-                SET status = ?
-                WHERE id = ? AND LOWER(username) = ?
-            """, (status, task_id, uname))
+            cursor.execute("SELECT id, username, linked_meeting_id FROM reminders WHERE id = ?", (t_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+
+        row_user = (row[1] if isinstance(row, tuple) else row['username']) or ''
+        row_user = row_user.strip().lower()
+        authorized = (not uname or uname == 'admin' or row_user == uname or not row_user or row_user == 'admin')
+        if not authorized:
+            return False
+
+        if is_postgres():
+            cursor.execute("UPDATE reminders SET status = %s WHERE id = %s", (status, t_id))
+        else:
+            cursor.execute("UPDATE reminders SET status = ? WHERE id = ?", (status, t_id))
+
+        # Bi-directional sync with linked Meeting
+        linked_m_id = row['linked_meeting_id'] if hasattr(row, 'keys') else (row[2] if len(row) > 2 else None)
+        if linked_m_id:
+            m_status = 'Completed' if status.lower() == 'completed' else 'Scheduled'
+            if is_postgres():
+                cursor.execute("UPDATE meetings SET status = %s WHERE id = %s", (m_status, linked_m_id))
+            else:
+                cursor.execute("UPDATE meetings SET status = ? WHERE id = ?", (m_status, linked_m_id))
+
         conn.commit()
-        return cursor.rowcount > 0
+        return True
     finally:
         try:
             conn.close()
@@ -823,9 +1050,9 @@ def delete_task(task_id, username=None):
     try:
         cursor = conn.cursor()
         if is_postgres():
-            cursor.execute("SELECT id, username FROM reminders WHERE id = %s", (t_id,))
+            cursor.execute("SELECT id, username, linked_meeting_id FROM reminders WHERE id = %s", (t_id,))
         else:
-            cursor.execute("SELECT id, username FROM reminders WHERE id = ?", (t_id,))
+            cursor.execute("SELECT id, username, linked_meeting_id FROM reminders WHERE id = ?", (t_id,))
         row = cursor.fetchone()
         if not row:
             return False
@@ -843,12 +1070,21 @@ def delete_task(task_id, username=None):
         if not authorized:
             return False
 
+        # If this task was generated from a meeting, deleting the task removes it from Upcoming Tasks
+        # without deleting the original meeting record.
+        linked_m_id = row['linked_meeting_id'] if hasattr(row, 'keys') else (row[2] if len(row) > 2 else None)
+        if linked_m_id:
+            if is_postgres():
+                cursor.execute("UPDATE meetings SET linked_task_id = NULL WHERE id = %s", (linked_m_id,))
+            else:
+                cursor.execute("UPDATE meetings SET linked_task_id = NULL WHERE id = ?", (linked_m_id,))
+
         if is_postgres():
             cursor.execute("DELETE FROM reminders WHERE id = %s", (t_id,))
         else:
             cursor.execute("DELETE FROM reminders WHERE id = ?", (t_id,))
         conn.commit()
-        return cursor.rowcount > 0
+        return True
     finally:
         try:
             conn.close()
@@ -858,6 +1094,8 @@ def delete_task(task_id, username=None):
 def get_upcoming_reminders(username):
     """
     Retrieves all future scheduled meetings and non-completed tasks that have active reminder timestamps.
+    Completed or cancelled meetings/tasks are excluded.
+    Tasks generated from meetings are excluded to prevent duplicate alarms (meeting alarm handles them).
     """
     uname = (username or 'admin').strip().lower()
     now_ms = int(time.time() * 1000)
@@ -866,7 +1104,8 @@ def get_upcoming_reminders(username):
         SELECT id, platform, meeting_url, scheduled_time, meeting_date, start_time, 
                reminder_offset, reminder_timestamp, status, title 
         FROM meetings 
-        WHERE LOWER(username) = ? AND reminder_timestamp IS NOT NULL AND reminder_timestamp > ? AND status != 'Cancelled'
+        WHERE LOWER(username) = ? AND reminder_timestamp IS NOT NULL AND reminder_timestamp > ? 
+          AND status != 'Cancelled' AND status != 'Completed'
         ORDER BY reminder_timestamp ASC
     """, (uname, now_ms))
 
@@ -874,7 +1113,9 @@ def get_upcoming_reminders(username):
         SELECT id, task_title, description, deadline_text, due_date, due_time, 
                reminder_offset, reminder_timestamp, status 
         FROM reminders 
-        WHERE LOWER(username) = ? AND reminder_timestamp IS NOT NULL AND reminder_timestamp > ? AND status != 'Completed'
+        WHERE LOWER(username) = ? AND reminder_timestamp IS NOT NULL AND reminder_timestamp > ? 
+          AND status != 'Completed' AND status != 'Cancelled'
+          AND (linked_meeting_id IS NULL OR linked_meeting_id = 0)
         ORDER BY reminder_timestamp ASC
     """, (uname, now_ms))
 
