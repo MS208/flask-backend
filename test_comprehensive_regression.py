@@ -82,6 +82,53 @@ class TestComprehensiveRegression(unittest.TestCase):
             self.assertEqual(res['priority'], "P2 - IMPORTANT", f"Expected P2 for: {msg}")
             self.assertEqual(res['classification'], "Important")
 
+    def test_prompt10_user_20_p2_examples(self):
+        p10_examples = [
+            "Hey, check this out.",
+            "Can you look at this?",
+            "Please have a look.",
+            "We should discuss this.",
+            "Could you send it later?",
+            "Make sure to bring it.",
+            "Don't forget to call.",
+            "Let's meet tomorrow.",
+            "Are you attending the session?",
+            "I need your help with this.",
+            "Kindly review the attachment.",
+            "Please confirm your availability.",
+            "Did you complete the task?",
+            "Remember to submit by Friday.",
+            "We need to fix this issue.",
+            "Could you share the update?",
+            "Please respond when free.",
+            "Follow up with them today.",
+            "Let's arrange a quick call.",
+            "Don't miss the deadline."
+        ]
+        for msg in p10_examples:
+            res = classify_message_context(msg, 'Ham', 0.95)
+            self.assertEqual(res['priority'], "P2 - IMPORTANT", f"Expected P2 for Prompt 10 example: '{msg}', got {res['priority']}")
+            self.assertEqual(res['classification'], "Important")
+            self.assertEqual(res['badge_color'], "#f59e0b")
+
+    def test_casual_standard_messages(self):
+        casual_msgs = [
+            "Hello",
+            "Good morning",
+            "How are you?",
+            "Nice weather today",
+            "haha yeah",
+            "thanks!",
+            "see you later",
+            "Call me maybe haha",
+            "Sounds good",
+            "Okay got it"
+        ]
+        for msg in casual_msgs:
+            res = classify_message_context(msg, 'Ham', 0.95)
+            self.assertEqual(res['priority'], "STANDARD", f"Expected STANDARD for casual msg: '{msg}', got {res['priority']}")
+            self.assertEqual(res['classification'], "Standard")
+
     def test_non_emergencies_disqualified_from_p1(self):
         non_emergencies = [
             "Can you help me with this homework assignment tonight?",

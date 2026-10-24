@@ -171,7 +171,7 @@ def classify_message_context(message_text, *args, **kwargs):
     normalized_text = re.sub(r'(.)\1{2,}', r'\1', text_lower)
     words = set(re.findall(r'\b\w+\b', normalized_text))
 
-    has_meeting = any(p in normalized_text for p in ["meet.google.com", "zoom.us", "teams.microsoft.com", "webex.com", "skype.com", "jit.si"])
+    has_meeting_link = any(p in normalized_text for p in ["meet.google.com", "zoom.us", "teams.microsoft.com", "webex.com", "skype.com", "jit.si"])
 
     # 1. P1 URGENT — WORD-FIRST DETECTION (Life safety / Immediate threat / Genuine emergencies / P1)
     # Check trivial/negation phrases first
@@ -195,20 +195,26 @@ def classify_message_context(message_text, *args, **kwargs):
 
         has_p1_word = bool(words.intersection(p1_core_words)) or bool(re.search(r'\b(s\.?o\.?s\.?|sos!*)\b', normalized_text))
 
-        # Help word evaluation (standalone cries, distress pleas, or urgent requests vs trivial domestic errands)
+        # Help word evaluation (distress cries vs routine collaboration requests)
         has_help_word = bool(words.intersection({"help", "hlp", "halp", "helpme", "helpp"}))
         is_help_emergency = False
         if has_help_word:
-            casual_words = {"homework", "assignment", "groceries", "supermarket", "shopping", "shirt", "outfit", "dinner", "laundry", "dishes", "movie"}
-            casual_phrases = [
-                "buy groceries", "buy milk", "supermarket", "groceries", "shopping",
-                "which shirt", "which outfit", "pick an outfit", "choose which", "pick which",
-                "cook dinner", "with homework", "with math", "find my keys", "choose a movie"
-            ]
-            is_casual_errand = bool(words.intersection(casual_words)) or any(err in normalized_text for err in casual_phrases)
-            has_urgent_cue = bool(words.intersection({"immediately", "now", "asap", "urgent", "danger", "hurt", "emergency", "accident", "someone", "trouble", "bleeding", "trapped"}))
-            # If not a casual domestic errand, or if explicitly coupled with distress cues, it is a genuine P1 emergency
-            if not is_casual_errand or has_urgent_cue:
+            is_standalone_help = bool(re.search(r'^(?:i\s+)?(?:need\s+)?(?:pls\s+|please\s+|someone\s+|somebody\s+)?(?:help|hlp|helpme|helpp|halp)(?:\s+me|\s+us)?(?:!|\.|\?)*$', normalized_text)) or bool(re.search(r'^(?:need|send)\s+help(?:!|\.|\?)*$', normalized_text))
+            has_emergency_distress_cue = bool(words.intersection({
+                "immediately", "now", "asap", "urgent", "urgently", "danger", "dangerous", "hurt",
+                "emergency", "accident", "bleeding", "trapped", "dying", "attack", "fire",
+                "police", "ambulance", "911", "choking", "unconscious", "trouble"
+            })) or any(p in normalized_text for p in ["send help", "help asap", "pls help", "plz help", "need help urgently", "need help immediately"])
+
+            is_routine_help_request = any(p in normalized_text for p in [
+                "help with this", "help with that", "help with the", "help with my", "help with our",
+                "help on this", "help me with", "help us with", "your help with", "need your help",
+                "need some help", "can you help", "could you help", "would you help", "help review",
+                "help check", "help fix", "help find", "help solve", "help me choose", "help me pick",
+                "help me buy", "help buy", "help pick"
+            ])
+
+            if (is_standalone_help or has_emergency_distress_cue) and not (is_routine_help_request and not has_emergency_distress_cue):
                 is_help_emergency = True
 
         # Fire emergency detection
@@ -241,59 +247,122 @@ def classify_message_context(message_text, *args, **kwargs):
                 "badge_color": "#ef4444"
             }
 
-    # 3. P2 IMPORTANT — WORD-FIRST DETECTION (Work deliverables / Meetings / Deadlines / Important requests)
-    # P1 takes absolute priority over P2
+    # Casual / farewell discard (before P2) to keep pure greetings/farewells as STANDARD
+    clean_no_punct = re.sub(r'[^\w\s]', '', normalized_text).strip()
+    pure_casual = {
+        "good morning", "good afternoon", "good evening", "good night", "hello", "hi", "hey",
+        "how are you", "how are you doing", "how are things", "hows it going",
+        "nice weather today", "nice weather", "haha", "haha yeah", "lol", "lmao",
+        "see you later", "see ya later", "catch you later", "talk later", "talk to you later", "catch up later", "see you tomorrow",
+        "bye", "bye for now", "goodbye", "thanks", "thank you", "thanks appreciate it", "appreciate it",
+        "sounds good", "okay sounds good", "ok sounds good", "got it", "okay got it", "ok got it",
+        "call me maybe haha", "yes please", "no please", "please no", "haha that was funny",
+        "i need a coffee", "i need some sleep", "did you check the score", "hey how was your day",
+        "not urgent just checking in", "coffee emergency haha"
+    }
+    if clean_no_punct in pure_casual:
+        return {
+            "classification": "Standard",
+            "priority": "STANDARD",
+            "urgency": "Low",
+            "badge_color": "#10b981"
+        }
+
+    # 2. P2 IMPORTANT — WORD-FIRST DETECTION (Work deliverables / Meetings / Deadlines / Important requests)
+    # Check meeting links or meeting mentions
     has_meeting_mention = (
-        any(w in words for w in ["meeting", "sync", "webinar", "interview", "standup", "conference", "catchup"]) and 
-        any(w in words for w in ["tomorrow", "today", "pm", "am", "join", "link", "scheduled", "at", "call", "calendar"])
+        any(w in words for w in ["meeting", "sync", "webinar", "interview", "standup", "conference", "catchup", "session"]) and 
+        any(w in words for w in ["tomorrow", "today", "pm", "am", "join", "link", "scheduled", "at", "call", "calendar", "attending", "attend"])
     )
-    has_meeting_active = has_meeting or has_meeting_mention
+    has_meeting_active = has_meeting_link or has_meeting_mention
 
-    # Contextual Important Phrases & Cues
-    conversational_important_phrases = [
-        "need to talk", "we need to talk", "need to speak", "need to discuss", "need to chat",
-        "action required", "attention required", "important notice", "priority notice", "important update", "important note",
-        "gentle reminder", "quick reminder", "reminder:", "remember to", "don't forget", "dont forget", "do not forget",
-        "deadline tomorrow", "deadline today", "due tomorrow", "due today", "due by", "due date", "by eod", "by cop", "submit by", "finish by",
-        "please review", "pls review", "plz review", "code review", "pr review", "for your review",
-        "please confirm", "pls confirm", "plz confirm", "confirm your", "confirm attendance", "confirm booking", "confirm meeting",
-        "status update", "project update", "update required", "weekly update", "daily update",
-        "please reply", "pls reply", "plz reply", "reply required", "waiting for your reply", "awaiting your reply",
-        "please respond", "pls respond", "plz respond", "response required", "awaiting response",
-        "let's discuss", "lets discuss", "matter to discuss", "need to discuss"
+    # Contextual patterns for requests, instructions, reminders, actions
+    p2_patterns = [
+        # Explicit Need
+        r"\b(?:you|u|we|i)\s+(?:need|needs|needed|have)\s+to\s+(?:talk|speak|discuss|see|check|look|review|read|send|submit|call|contact|confirm|sign|know|decide|handle|prepare|meet|resolve|fix|pay|verify|upload|download|update|attend|inform|figure)\b",
+        r"\bneed\s+(?:to\s+talk|to\s+speak|to\s+discuss|to\s+know|to\s+see|to\s+check|to\s+call|to\s+meet)\b",
+        r"\bneed\s+(?:you|u)\s+to\b",
+        r"\b(?:there\s+is|there's)\s+something\s+(?:you|u)\s+need\s+to\s+(?:know|see|hear|do|check)\b",
+        r"\b(?:needs|requires|demands)\s+(?:your|ur)\s+(?:attention|review|input|approval|eyes|signature|sign-?off|presence|response|confirmation|feedback)\b",
+        r"\b(?:action|input|approval|signature|decision|response)\s+(?:needed|required|pending|requested)\b",
+        
+        # Attention, Looking, Checking
+        r"\b(?:check\s+this\s+out|check\s+this|check\s+it\s+out|check\s+out\s+this|take\s+a\s+look|have\s+a\s+look|look\s+at\s+this|look\s+at\s+that)\b",
+        r"\b(?:don'?t\s+forget|do\s+not\s+forget|keep\s+in\s+mind|make\s+sure)\b",
+        r"\bremember\s+(?:to|what|that|about)\b",
+        r"\b(?:reminder|gentle\s+reminder|quick\s+reminder)\b",
+        r"\b(?:this\s+is\s+important|important\s+notice|important\s+update|important\s+note|for\s+your\s+attention|action\s+required|urgent\s+request|priority\s+notice)\b",
+
+        # Deliverables & Due Dates
+        r"\b(?:ur|your)\b.*\b(?:report|assignment|project|pr|task|presentation|invoice|code|file|doc|deadline|deck|contract)\b",
+        r"\b(?:is\s+)?due\s+(?:before|by|today|tomorrow|this|on|at|\d+)\b",
+        r"\b(?:report|assignment|project|presentation|invoice|contract)\s+is\s+due\b",
+
+        # Follow-up, Feedback, Review, Discussion requests
+        r"\blet\s+(?:me|us)\s+know\s+(?:what|if|how|when|your|whether)\b",
+        r"\bget\s+back\s+to\s+(?:me|us)\b",
+        r"\b(?:please|pls|plz|kindly)\s+(?:take\s+care\s+of|handle|manage|fix|resolve|have\s+a\s+look)\b",
+        r"\bsee\s+if\s+(?:this|it|that)\s+works\b",
+        r"\b(?:i\s+)?wanted\s+(?:you|u)\s+to\s+(?:know|see|check|review|look)\b",
+        r"\b(?:you|u)\s+might\s+want\s+to\s+(?:review|check|look|see|read|know|consider)\b",
+        r"\b(?:please|pls|plz|kindly)\s+(?:reply|respond|confirm|review|verify|check|send|submit|update|call|sign|share|complete|finish)\b",
+        r"\b(?:waiting|awaiting)\s+(?:for\s+)?(?:your|ur)\s+(?:reply|response|update|confirmation|feedback)\b",
+        r"\b(?:can|could|would)\s+(?:you|u)\s+(?:look|check|send|share|call|review|confirm|take\s+care|verify|submit|update|help|let|bring)\b",
+        r"\b(?:can|could|should)\s+we\s+(?:talk|discuss|meet|sync|chat|review|plan)\b",
+        r"\bwe\s+should\s+(?:discuss|talk|meet|sync|review|plan|look)\b",
+
+        # Action / Instruction / Reminder phrases from Prompt 10
+        r"\bmake\s+sure\s+(?:to|you|u)\s+(?:bring|check|send|call|submit|confirm|finish|meet|review|do)\b",
+        r"\bdon'?t\s+forget\s+to\s+(?:call|send|bring|submit|check|finish|review|meet|pay|remind|attend)\b",
+        r"\blet'?s\s+(?:meet|discuss|arrange|schedule|sync|catch\s+up|review|talk)\b",
+        r"\b(?:are\s+you|will\s+you\s+be)\s+attending\b",
+        r"\b(?:i\s+)?need\s+(?:your|ur)\s+help\b",
+        r"\b(?:did\s+you|have\s+you)\s+(?:complete|finish|send|submit|review|pay|sign|approve)\b",
+        r"\bremember\s+to\s+(?:submit|send|call|finish|check|bring|pay|complete)\b",
+        r"\bwe\s+need\s+to\s+(?:fix|resolve|discuss|handle|finish|address|complete)\b",
+        r"\b(?:please|pls|plz|kindly)\s+respond\s+(?:when\s+free|asap|when\s+you\s+can|soon)\b",
+        r"\bfollow\s+up\s+with\b",
+        r"\b(?:arrange|schedule)\s+a\s+(?:quick\s+)?call\b",
+        r"\bdon'?t\s+miss\s+the\s+deadline\b",
+        r"\b(deadline|due\s+date|due\s+by|due\s+today|due\s+tomorrow|by\s+eod|by\s+cop)\b"
     ]
-    has_conv_important = any(phrase in normalized_text for phrase in conversational_important_phrases)
 
-    # Contextual patterns for 'need', 'check', 'pls/plz', 'ur'
-    has_u_need = bool(re.search(r'\b(u|you)\s+need\s+to\s+(see|check|review|look|read|send|submit|call|confirm|sign|know)\b', normalized_text))
-    has_need_you = bool(re.search(r'\bneed\s+(you|u)\s+to\b', normalized_text))
-    has_pls_action = bool(re.search(r'\b(pls|plz|please|kindly)\s+(check|review|send|submit|confirm|call|update|sign|approve|finish|inform|contact)\b', normalized_text))
-    has_ur_deliverable = bool(re.search(r'\b(ur|your)\b.*\b(report|assignment|project|pr|task|presentation|invoice|code|file|doc|deadline|deck|contract)\b', normalized_text))
-    has_action_needed = bool(re.search(r'\b(action|input|approval|signature|decision|response)\s+(needed|required|pending)\b', normalized_text))
+    has_p2_pattern = any(bool(re.search(pat, normalized_text)) for pat in p2_patterns)
 
-    # Work terms and action/time co-occurrence
-    work_terms = ["report", "project", "assignment", "presentation", "deck", "slides", "deliverable",
-                  "code", "pr", "pull request", "invoice", "contract", "client", "proposal", "audit",
-                  "exam", "syllabus", "homework", "task", "deployment", "release", "build", "sprint"]
-    action_terms = ["submit", "review", "due", "deadline", "send", "finish", "complete", "sign",
-                    "approve", "approved", "finalize", "feedback", "status", "update"]
-    time_terms = ["today", "tomorrow", "tonight", "friday", "monday", "eod", "asap", "by ", "pm", "am"]
+    # Broad Word-Based Detection: Action Verbs + Work Assets / Time Cues / Instructions
+    action_verbs = {
+        "check", "see", "look", "review", "read", "verify", "confirm", "complete",
+        "finish", "submit", "send", "share", "reply", "respond", "call", "contact",
+        "message", "inform", "update", "attend", "join", "visit", "meet", "discuss",
+        "arrange", "schedule", "prepare", "remember", "handle", "manage", "fix",
+        "resolve", "bring", "collect", "pay", "book", "register", "apply", "sign",
+        "upload", "download", "approve", "decide"
+    }
 
-    has_work_term = any((w in words if ' ' not in w else w in normalized_text) for w in work_terms)
-    has_action_term = any((w in words if ' ' not in w else w in normalized_text) for w in action_terms)
-    time_words = {"today", "tomorrow", "tonight", "friday", "monday", "eod", "asap", "am", "pm"}
-    has_time_term = bool(words.intersection(time_words)) or bool(re.search(r'\b(by\s+(?:eod|cop|today|tomorrow|monday|friday|\d+)|at\s+\d+)\b', normalized_text))
+    target_assets = {
+        "document", "doc", "docs", "file", "files", "report", "project", "assignment",
+        "presentation", "deck", "slides", "contract", "invoice", "code", "pr", "pull request",
+        "task", "tasks", "work", "deadline", "due", "meeting", "sync", "appointment",
+        "schedule", "exam", "syllabus", "homework", "paper", "ticket", "bug", "issue",
+        "proposal", "draft", "details", "form", "link", "email", "mail", "bill",
+        "payment", "statement", "visa", "flight", "attachment", "availability", "session"
+    }
 
-    is_work_important = (has_work_term and has_action_term) or (has_work_term and has_time_term)
+    time_cues = {"today", "tomorrow", "tonight", "asap", "deadline", "due", "later", "monday", "friday", "this week", "right away"}
+
+    has_action_verb = bool(words.intersection(action_verbs))
+    has_target = bool(words.intersection(target_assets)) or any(a in normalized_text for a in ["pull request", "sign off", "eod", "cop", "right away", "this week"])
+    has_time = bool(words.intersection(time_cues)) or bool(re.search(r'\b(by\s+(?:eod|cop|today|tomorrow|monday|friday|\d+)|at\s+\d+)\b', normalized_text))
+
+    has_action_target = has_action_verb and has_target
+    has_action_time = has_action_verb and has_time and any(p in words for p in ["can", "could", "would", "will", "should", "please", "pls", "plz", "we", "you", "u", "let's", "lets", "need", "must", "due", "to", "up"])
+
     has_work_importance_words = bool(words.intersection({"important", "deadline", "pending", "required"})) and bool(words.intersection({"project", "task", "doc", "report", "pr", "review", "eod", "client", "file", "contract"}))
 
     significant_updates = ["bank statement", "salary credited", "flight confirmation", "visa approved", "interview scheduled"]
     has_sig_update = any(u in normalized_text for u in significant_updates)
-    is_important_inquiry = has_work_term and ("?" in message_text or any(q in normalized_text for q in ["what is the status", "did you", "when will", "could you please"]))
 
-    if (has_meeting_active or has_conv_important or has_u_need or has_need_you or has_pls_action or 
-        has_ur_deliverable or has_action_needed or is_work_important or has_work_importance_words or 
-        has_sig_update or is_important_inquiry):
+    if (has_meeting_active or has_p2_pattern or has_action_target or has_action_time or has_work_importance_words or has_sig_update):
         return {
             "classification": "Important",
             "priority": "P2 - IMPORTANT",
